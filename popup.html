@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Media Shield</title>
+
+  <link rel="stylesheet" href="popup.css">
+</head>
+
+<body>
+
+  <main class="app">
+
+    <header class="brand">
+      <div class="shield-mark">M</div>
+
+      <div>
+        <h1>Media Shield</h1>
+        <p>by Arthiva Labs</p>
+      </div>
+    </header>
+
+    <section class="intro">
+      <span class="eyebrow">MEDIA AUTHENTICITY ASSISTANT</span>
+
+      <h2>Get additional signals before you trust digital media.</h2>
+
+      <p>
+        Check an image for available authenticity, provenance,
+        metadata, and potential manipulation indicators.
+      </p>
+    </section>
+
+    <section class="check-card">
+
+      <div class="check-icon">◎</div>
+
+      <h3>Check an Image</h3>
+
+      <p>
+        Select an image to inspect the evidence available to Media Shield.
+      </p>
+
+      <button id="selectImageButton" type="button">
+        Select Image
+      </button>
+
+      <input
+        id="imageInput"
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        hidden
+      >
+
+      <p class="supported">
+        JPG · JPEG · PNG · WEBP
+      </p>
+
+    </section>
+
+    <section class="privacy-note">
+      <strong>Privacy-first</strong>
+
+      <p>
+        Media Shield will prefer local analysis whenever technically practical.
+        Your media will not be silently uploaded.
+      </p>
+    </section>
+
+    <footer>
+      <p>
+        Media Shield provides analysis indicators, not proof that media
+        is authentic or manipulated.
+      </p>
+    </footer>
+
+  </main>
+
+  <script src="popup.js"></script>
+
+</body>
+</html>
