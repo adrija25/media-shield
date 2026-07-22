@@ -25,6 +25,13 @@ jobs:
       - name: Build Media Shield
         run: npm run build
 
+      - name: Inspect build contents
+        run: |
+          echo "=== MEDIA SHIELD DIST CONTENTS ==="
+          find dist -type f -print
+          echo "=== FILE SIZES ==="
+          du -ah dist
+
       - name: Upload extension build
         uses: actions/upload-artifact@v4
         with:
