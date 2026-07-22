@@ -32,6 +32,13 @@ jobs:
           echo "=== FILE SIZES ==="
           du -ah dist
 
+      - name: Inspect C2PA bundle
+        run: |
+          echo "=== C2PA / WASM REFERENCES ==="
+          grep -Eio 'c2pa|wasm|WebAssembly' dist/assets/provenance.js | sort | uniq -c || true
+          echo "=== WASM FILES IN DIST ==="
+          find dist -type f -name "*.wasm" -print
+
       - name: Upload extension build
         uses: actions/upload-artifact@v4
         with:
