@@ -43,7 +43,8 @@ function createEvidenceItem(type, title, description) {
 }
 
 function showNoImageMessage() {
-  previewContainer.innerHTML = "<p>No image is currently available for analysis.</p>";
+  previewContainer.innerHTML =
+    "<p>No image is currently available for analysis.</p>";
 
   fileName.textContent = "No image selected";
   fileDetails.textContent = "";
@@ -55,7 +56,50 @@ function showNoImageMessage() {
   evidenceList.innerHTML = "";
 }
 
-function analyzeImageRecord(record) {
+function buildMetadataDescription(metadata) {
+  const findings = [];
+
+  if (metadata.hasExif) {
+    findings.push("EXIF metadata container detected");
+  }
+
+  if (metadata.hasXmp) {
+    findings.push("XMP metadata detected");
+  }
+
+  if (metadata.hasIccProfile) {
+    findings.push("ICC colour profile detected");
+  }
+
+  if (metadata.hasPhotoshopResource) {
+    findings.push("Photoshop resource metadata detected");
+  }
+
+  if (metadata.softwareIndicators.length > 0) {
+    findings.push(
+      `Software references found: ${metadata.softwareIndicators.join(", ")}`
+    );
+  }
+
+  if (metadata.comments.length > 0) {
+    findings.push("Embedded JPEG comment data detected");
+  }
+
+  if (findings.length === 0) {
+    return (
+      "No supported metadata markers were detected by this local check. " +
+      "This is not evidence that the image is AI-generated or manipulated. " +
+      "Legitimate images often have metadata removed by websites, apps, or editing workflows."
+    );
+  }
+
+  return (
+    `${findings.join(". ")}. ` +
+    "Metadata can describe how a file was created or processed, but it does not by itself prove whether the visual content is authentic or manipulated."
+  );
+}
+
+async function analyzeImageRecord(record) {
   if (!record || !record.dataUrl) {
     showNoImageMessage();
     return;
@@ -77,7 +121,7 @@ function analyzeImageRecord(record) {
 
   const image = new Image();
 
-  image.onload = () => {
+  image.onload = async () => {
     previewContainer.innerHTML = "";
     previewContainer.appendChild(image);
 
@@ -93,26 +137,62 @@ function analyzeImageRecord(record) {
       )
     );
 
-    evidenceList.appendChild(
-      createEvidenceItem(
-        "neutral",
-        "Metadata",
-        "Detailed metadata inspection has not yet been enabled. Missing metadata will never be treated as proof of AI generation or manipulation."
-      )
-    );
+    let metadata;
+
+    try {
+      metadata = await inspectImageMetadata(
+        record.dataUrl,
+        record.type
+      );
+
+      evidenceList.appendChild(
+        createEvidenceItem(
+          metadata.aiIndicators.length > 0 ? "warning" : "info",
+          "Metadata",
+          buildMetadataDescription(metadata)
+        )
+      );
+
+      if (metadata.aiIndicators.length > 0) {
+        evidenceList.appendChild(
+          createEvidenceItem(
+            "warning",
+            "AI-generation metadata indicator",
+            `Explicit references associated with AI-generation software were found in the file: ${metadata.aiIndicators.join(
+              ", "
+            )}. This is a meaningful metadata indicator, but it should not be treated as standalone proof that the displayed image is AI-generated.`
+          )
+        );
+      }
+    } catch (error) {
+      evidenceList.appendChild(
+        createEvidenceItem(
+          "neutral",
+          "Metadata",
+          "Media Shield could not complete the local metadata inspection for this file. No conclusion should be drawn from this."
+        )
+      );
+    }
 
     evidenceList.appendChild(
       createEvidenceItem(
         "neutral",
         "Provenance",
-        "Content Credentials and other provenance information have not yet been checked in this development version."
+        "Content Credentials and cryptographically verifiable provenance have not yet been checked. Absence of a provenance result does not mean the image is fake."
       )
     );
 
-    statusTitle.textContent = "Initial file inspection complete";
+    if (metadata && metadata.aiIndicators.length > 0) {
+      statusTitle.textContent = "Metadata indicator detected";
 
-    statusDescription.textContent =
-      "Basic file characteristics were inspected locally. Media Shield does not yet have enough evidence to assess whether this image may be AI-generated or manipulated.";
+      statusDescription.textContent =
+        "The file contains an explicit reference associated with AI-generation software. This warrants additional verification, but Media Shield does not treat metadata alone as proof that the image is AI-generated or manipulated.";
+    } else {
+      statusTitle.textContent = "Local inspection complete";
+
+      statusDescription.textContent =
+        "File characteristics and supported metadata markers were inspected locally. No conclusion about authenticity can be made from these checks alone.";
+    }
   };
 
   image.onerror = () => {
@@ -127,7 +207,9 @@ function analyzeImageRecord(record) {
 }
 
 checkAnotherButton.addEventListener("click", () => {
-  window.close();
+  chrome.storage.local.remove("mediaShieldPendingImage", () => {
+    window.location.href = "popup.html";
+  });
 });
 
 chrome.storage.local.get(["mediaShieldPendingImage"], (result) => {
