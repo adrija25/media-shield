@@ -3,6 +3,9 @@
   "name": "Media Shield",
   "version": "1.0.0",
   "description": "Check images for potential AI-generation, manipulation, and authenticity indicators.",
+  "permissions": [
+    "storage"
+  ],
   "action": {
     "default_title": "Media Shield",
     "default_popup": "popup.html"
