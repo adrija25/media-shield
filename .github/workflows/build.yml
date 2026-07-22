@@ -1,0 +1,33 @@
+name: Build Media Shield
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Media Shield
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Media Shield
+        run: npm run build
+
+      - name: Upload extension build
+        uses: actions/upload-artifact@v4
+        with:
+          name: media-shield-build
+          path: dist/
+          if-no-files-found: error
