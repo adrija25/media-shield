@@ -1,6 +1,8 @@
 const selectImageButton = document.getElementById("selectImageButton");
 const imageInput = document.getElementById("imageInput");
 
+const MAX_FILE_SIZE = 8 * 1024 * 1024;
+
 selectImageButton.addEventListener("click", () => {
   imageInput.click();
 });
@@ -24,10 +26,40 @@ imageInput.addEventListener("change", () => {
     return;
   }
 
-  alert(
-    `Selected: ${selectedFile.name}\n\n` +
-    "Media Shield analysis will be added in the next development stage."
-  );
+  if (selectedFile.size > MAX_FILE_SIZE) {
+    alert("Please select an image smaller than 8 MB.");
+    imageInput.value = "";
+    return;
+  }
 
-  imageInput.value = "";
+  const reader = new FileReader();
+
+  reader.onload = () => {
+    const imageRecord = {
+      name: selectedFile.name,
+      type: selectedFile.type,
+      size: selectedFile.size,
+      dataUrl: reader.result
+    };
+
+    chrome.storage.local.set(
+      {
+        mediaShieldPendingImage: imageRecord
+      },
+      () => {
+        if (chrome.runtime.lastError) {
+          alert("Media Shield could not prepare this image for analysis.");
+          return;
+        }
+
+        window.location.href = "analysis.html";
+      }
+    );
+  };
+
+  reader.onerror = () => {
+    alert("Media Shield could not read the selected image.");
+  };
+
+  reader.readAsDataURL(selectedFile);
 });
