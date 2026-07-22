@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Media Shield — Media Check</title>
+
+  <link rel="stylesheet" href="analysis.css">
+</head>
+
+<body>
+
+  <main class="app">
+
+    <header class="brand">
+      <div class="shield-mark">M</div>
+
+      <div>
+        <h1>Media Shield</h1>
+        <p>by Arthiva Labs</p>
+      </div>
+    </header>
+
+    <section class="heading">
+      <span class="eyebrow">MEDIA CHECK</span>
+      <h2>Image Analysis</h2>
+
+      <p>
+        Media Shield examines available evidence to help you evaluate
+        potentially synthetic or manipulated media.
+      </p>
+    </section>
+
+    <section class="media-card">
+
+      <div id="previewContainer" class="preview-container">
+        <p>Preparing image preview…</p>
+      </div>
+
+      <div class="file-information">
+        <span>SELECTED IMAGE</span>
+        <strong id="fileName">Loading…</strong>
+        <p id="fileDetails"></p>
+      </div>
+
+    </section>
+
+    <section id="analysisStatus" class="status-card">
+
+      <span class="status-label">ANALYSIS STATUS</span>
+
+      <h3 id="statusTitle">Preparing analysis…</h3>
+
+      <p id="statusDescription">
+        Media Shield is inspecting the evidence available from this image.
+      </p>
+
+    </section>
+
+    <section class="evidence">
+
+      <div class="section-heading">
+        <span>AVAILABLE EVIDENCE</span>
+      </div>
+
+      <div id="evidenceList" class="evidence-list">
+
+        <article class="evidence-item">
+          <div class="indicator neutral"></div>
+
+          <div>
+            <h4>File characteristics</h4>
+            <p>Waiting for analysis.</p>
+          </div>
+        </article>
+
+        <article class="evidence-item">
+          <div class="indicator neutral"></div>
+
+          <div>
+            <h4>Metadata</h4>
+            <p>Waiting for analysis.</p>
+          </div>
+        </article>
+
+        <article class="evidence-item">
+          <div class="indicator neutral"></div>
+
+          <div>
+            <h4>Provenance</h4>
+            <p>Waiting for analysis.</p>
+          </div>
+        </article>
+
+      </div>
+
+    </section>
+
+    <section class="important-note">
+      <strong>Important</strong>
+
+      <p>
+        Media Shield provides analysis indicators, not proof that an image
+        is authentic, AI-generated, or manipulated. Missing metadata or
+        provenance information does not mean an image is fake.
+      </p>
+    </section>
+
+    <button id="checkAnotherButton" type="button">
+      Check Another Image
+    </button>
+
+  </main>
+
+  <script src="analysis.js"></script>
+
+</body>
+</html>
