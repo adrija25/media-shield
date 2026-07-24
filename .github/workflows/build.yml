@@ -25,23 +25,33 @@ jobs:
       - name: Build Media Shield
         run: npm run build
 
-      - name: Inspect build contents
+      - name: Prepare Chrome extension
         run: |
-          echo "=== MEDIA SHIELD DIST CONTENTS ==="
-          find dist -type f -print
-          echo "=== FILE SIZES ==="
-          du -ah dist
+          mkdir -p chrome-build
 
-      - name: Inspect C2PA bundle
+          cp -R dist/. chrome-build/
+
+          cp manifest.json chrome-build/manifest.json
+
+          if [ -f metadata.js ]; then
+            cp metadata.js chrome-build/metadata.js
+          fi
+
+          echo "=== CHROME EXTENSION CONTENTS ==="
+          find chrome-build -type f -print
+
+      - name: Verify required Chrome files
         run: |
-          echo "=== C2PA / WASM REFERENCES ==="
-          grep -Eio 'c2pa|wasm|WebAssembly' dist/assets/provenance.js | sort | uniq -c || true
-          echo "=== WASM FILES IN DIST ==="
-          find dist -type f -name "*.wasm" -print
+          test -f chrome-build/manifest.json
+          test -f chrome-build/popup.html
+          test -f chrome-build/analysis.html
+          test -f chrome-build/assets/provenance.js
 
-      - name: Upload extension build
+          echo "Media Shield Chrome package verification passed."
+
+      - name: Upload Chrome extension
         uses: actions/upload-artifact@v4
         with:
-          name: media-shield-build
-          path: dist/
+          name: media-shield-chrome
+          path: chrome-build/
           if-no-files-found: error
