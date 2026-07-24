@@ -32,6 +32,7 @@ jobs:
           cp -R dist/. chrome-build/
 
           cp manifest.json chrome-build/manifest.json
+          cp popup.js chrome-build/popup.js
 
           if [ -f metadata.js ]; then
             cp metadata.js chrome-build/metadata.js
@@ -44,6 +45,7 @@ jobs:
         run: |
           test -f chrome-build/manifest.json
           test -f chrome-build/popup.html
+          test -f chrome-build/popup.js
           test -f chrome-build/analysis.html
           test -f chrome-build/assets/provenance.js
 
