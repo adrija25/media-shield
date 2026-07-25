@@ -60,6 +60,72 @@
 
     </section>
 
+    <section class="pro-card" id="proCard">
+
+      <div class="pro-heading">
+        <div>
+          <span class="pro-label">MEDIA SHIELD PRO</span>
+          <h3>Advanced media analysis</h3>
+        </div>
+
+        <span class="pro-price">₹399</span>
+      </div>
+
+      <p class="pro-description">
+        Unlock advanced authenticity, provenance, manipulation,
+        and AI-generation indicators.
+      </p>
+
+      <div id="proInactiveState">
+
+        <button id="upgradeProButton" type="button">
+          Upgrade to Pro
+        </button>
+
+        <button id="activateProButton" type="button">
+          Already purchased? Activate Pro
+        </button>
+
+      </div>
+
+      <div id="proActivationState" hidden>
+
+        <label for="activationKey">
+          Activation key
+        </label>
+
+        <input
+          id="activationKey"
+          type="text"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="Enter your Media Shield Pro key"
+        >
+
+        <button id="submitActivationButton" type="button">
+          Activate Media Shield Pro
+        </button>
+
+        <button id="cancelActivationButton" type="button">
+          Cancel
+        </button>
+
+        <p id="activationMessage" role="status"></p>
+
+      </div>
+
+      <div id="proActiveState" hidden>
+
+        <span class="active-badge">PRO ACTIVE</span>
+
+        <p>
+          Media Shield Pro is active on this installation.
+        </p>
+
+      </div>
+
+    </section>
+
     <section class="privacy-note">
       <strong>Privacy-first</strong>
 
