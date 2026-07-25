@@ -148,9 +148,29 @@ function inspectJpegMarkers(bytes) {
 }
 
 async function inspectImageMetadata(dataUrl, mimeType) {
-  const response = await fetch(dataUrl);
-  const buffer = await response.arrayBuffer();
-  const bytes = new Uint8Array(buffer);
+  const commaIndex = dataUrl.indexOf(",");
+
+  if (commaIndex === -1) {
+    throw new Error("Invalid image data URL.");
+  }
+
+  const header = dataUrl.slice(0, commaIndex);
+  const encodedData = dataUrl.slice(commaIndex + 1);
+
+  let bytes;
+
+  if (header.includes(";base64")) {
+    const binaryString = atob(encodedData);
+
+    bytes = new Uint8Array(binaryString.length);
+
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+  } else {
+    const decodedText = decodeURIComponent(encodedData);
+    bytes = new TextEncoder().encode(decodedText);
+  }
 
   const result = {
     format: mimeType || "Unknown",
