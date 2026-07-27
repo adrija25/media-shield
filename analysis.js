@@ -7,7 +7,7 @@ const evidenceList = document.getElementById("evidenceList");
 const checkAnotherButton = document.getElementById("checkAnotherButton");
 
 const VISUAL_ANALYSIS_API =
-  "https://media-shield-analysis.adrijachoudhury25.workers.dev";
+  "https://media-shield-analysis.adrijachoudhury25.workers.dev/";
 
 function formatFileSize(bytes) {
   if (bytes < 1024) {
@@ -174,11 +174,9 @@ async function runVisualAnalysis(dataUrl) {
       VISUAL_ANALYSIS_API,
       {
         method: "POST",
-
         headers: {
           "Content-Type": "application/json"
         },
-
         body: JSON.stringify({
           image: dataUrl
         })
@@ -195,26 +193,20 @@ async function runVisualAnalysis(dataUrl) {
       );
     }
 
-    if (!response.ok || !data.ok) {
+    if (
+      !response.ok ||
+      !data.ok ||
+      typeof data.analysis !== "string"
+    ) {
       throw new Error(
         data.error ||
         "Visual analysis could not be completed."
       );
     }
 
-    if (
-      typeof data.analysis !== "string" ||
-      !data.analysis.trim()
-    ) {
-      throw new Error(
-        "The visual analysis service returned no assessment."
-      );
-    }
-
     return {
       ok: true,
-      analysis: data.analysis.trim(),
-      error: null
+      analysis: data.analysis
     };
   } catch (error) {
     console.error(
@@ -233,36 +225,203 @@ async function runVisualAnalysis(dataUrl) {
   }
 }
 
-function getVisualIndicatorType(analysis) {
-  const normalized =
-    analysis.toLowerCase();
+function parseVisualAnalysis(rawAnalysis) {
+  const result = {
+    assessment: "Inconclusive",
+    summary: "",
+    indicators: [],
+    limitation:
+      "Visual inspection alone cannot prove whether an image is authentic, AI-generated, AI-edited, or otherwise manipulated."
+  };
 
   if (
-    normalized.includes(
-      "assessment: strong indicators"
-    ) ||
-    normalized.includes(
-      "assessment: some indicators"
-    )
+    typeof rawAnalysis !== "string" ||
+    !rawAnalysis.trim()
   ) {
-    return "warning";
+    return result;
   }
 
-  return "neutral";
+  const cleaned = rawAnalysis.trim();
+
+  const assessmentMatch = cleaned.match(
+    /ASSESSMENT:\s*(.+?)(?=\n|SUMMARY:|$)/i
+  );
+
+  if (assessmentMatch) {
+    result.assessment =
+      assessmentMatch[1].trim();
+  }
+
+  const summaryMatch = cleaned.match(
+    /SUMMARY:\s*([\s\S]*?)(?=\n\s*INDICATORS:|INDICATORS:|$)/i
+  );
+
+  if (summaryMatch) {
+    result.summary =
+      summaryMatch[1]
+        .replace(/\s+/g, " ")
+        .trim();
+  }
+
+  const indicatorsMatch = cleaned.match(
+    /INDICATORS:\s*([\s\S]*?)(?=\n\s*LIMITATION:|LIMITATION:|$)/i
+  );
+
+  if (indicatorsMatch) {
+    result.indicators =
+      indicatorsMatch[1]
+        .split("\n")
+        .map((line) =>
+          line
+            .replace(/^\s*[-•]\s*/, "")
+            .trim()
+        )
+        .filter(Boolean);
+  }
+
+  const limitationMatch = cleaned.match(
+    /LIMITATION:\s*([\s\S]*?)$/i
+  );
+
+  if (limitationMatch) {
+    const limitation =
+      limitationMatch[1]
+        .replace(/\s+/g, " ")
+        .trim();
+
+    if (limitation) {
+      result.limitation = limitation;
+    }
+  }
+
+  return result;
 }
 
-function hasSuspiciousVisualIndicators(analysis) {
-  const normalized =
-    analysis.toLowerCase();
+function normaliseAssessment(assessment) {
+  const value =
+    String(assessment || "")
+      .toLowerCase()
+      .trim();
 
-  return (
-    normalized.includes(
-      "assessment: strong indicators"
-    ) ||
-    normalized.includes(
-      "assessment: some indicators"
+  if (value.includes("strong")) {
+    return "strong";
+  }
+
+  if (value.includes("some")) {
+    return "some";
+  }
+
+  if (value.includes("low")) {
+    return "low";
+  }
+
+  return "inconclusive";
+}
+
+function addVisualAnalysisEvidence(parsedAnalysis) {
+  const assessmentType =
+    normaliseAssessment(
+      parsedAnalysis.assessment
+    );
+
+  let indicatorType = "neutral";
+
+  if (
+    assessmentType === "some" ||
+    assessmentType === "strong"
+  ) {
+    indicatorType = "warning";
+  } else if (assessmentType === "low") {
+    indicatorType = "info";
+  }
+
+  evidenceList.appendChild(
+    createEvidenceItem(
+      indicatorType,
+      "Visual manipulation analysis",
+      parsedAnalysis.summary ||
+        "The visual analysis did not provide a summary."
     )
   );
+
+  if (parsedAnalysis.indicators.length > 0) {
+    parsedAnalysis.indicators.forEach(
+      (indicatorText) => {
+        evidenceList.appendChild(
+          createEvidenceItem(
+            indicatorType,
+            "Visual indicator",
+            indicatorText
+          )
+        );
+      }
+    );
+  }
+
+  evidenceList.appendChild(
+    createEvidenceItem(
+      "neutral",
+      "Visual-analysis limitation",
+      parsedAnalysis.limitation
+    )
+  );
+
+  return assessmentType;
+}
+
+function updateFinalStatus(
+  aiMetadataDetected,
+  provenance,
+  visualResult
+) {
+  if (aiMetadataDetected) {
+    statusTitle.textContent =
+      "Potential manipulation indicators detected";
+
+    statusDescription.textContent =
+      "Media Shield found one or more indicators that may be consistent with AI generation, AI editing, or digital manipulation. These indicators warrant additional verification but are not proof that the image is manipulated.";
+
+    return;
+  }
+
+  if (
+    visualResult === "some" ||
+    visualResult === "strong"
+  ) {
+    statusTitle.textContent =
+      "Potential manipulation indicators detected";
+
+    statusDescription.textContent =
+      "Media Shield found one or more indicators that may be consistent with AI generation, AI editing, or digital manipulation. These indicators warrant additional verification but are not proof that the image is manipulated.";
+
+    return;
+  }
+
+  if (visualResult === "low") {
+    statusTitle.textContent =
+      "No strong manipulation indicators detected";
+
+    statusDescription.textContent =
+      "The available checks did not identify strong indicators of AI generation or manipulation. This does not establish that the image is authentic or unedited.";
+
+    return;
+  }
+
+  if (provenance?.hasManifest) {
+    statusTitle.textContent =
+      "Content Credentials detected";
+
+    statusDescription.textContent =
+      "Media Shield found C2PA provenance information in this file. Review the provenance information together with the other available evidence.";
+
+    return;
+  }
+
+  statusTitle.textContent =
+    "Analysis inconclusive";
+
+  statusDescription.textContent =
+    "Media Shield completed the available checks, but the evidence does not support a reliable conclusion about whether the image is authentic, AI-generated, AI-edited, or otherwise manipulated.";
 }
 
 async function analyzeImageRecord(record) {
@@ -293,7 +452,7 @@ async function analyzeImageRecord(record) {
     "Analysing image…";
 
   statusDescription.textContent =
-    "Media Shield is inspecting file characteristics, metadata, provenance, and visual manipulation indicators.";
+    "Media Shield is examining locally available file evidence, metadata, provenance, and visible image characteristics.";
 
   const image = new Image();
 
@@ -348,6 +507,11 @@ async function analyzeImageRecord(record) {
         );
       }
     } catch (error) {
+      console.error(
+        "Metadata inspection error:",
+        error
+      );
+
       evidenceList.appendChild(
         createEvidenceItem(
           "neutral",
@@ -356,9 +520,6 @@ async function analyzeImageRecord(record) {
         )
       );
     }
-
-    statusDescription.textContent =
-      "Media Shield is checking available Content Credentials and provenance.";
 
     const provenance =
       await runProvenanceCheck(
@@ -377,6 +538,9 @@ async function analyzeImageRecord(record) {
       )
     );
 
+    statusTitle.textContent =
+      "Analysing image…";
+
     statusDescription.textContent =
       "Media Shield is examining the visible image for potential AI-generation or manipulation indicators.";
 
@@ -385,16 +549,19 @@ async function analyzeImageRecord(record) {
         record.dataUrl
       );
 
+    let visualResult =
+      "inconclusive";
+
     if (visualAnalysis.ok) {
-      evidenceList.appendChild(
-        createEvidenceItem(
-          getVisualIndicatorType(
-            visualAnalysis.analysis
-          ),
-          "Visual manipulation analysis",
+      const parsedAnalysis =
+        parseVisualAnalysis(
           visualAnalysis.analysis
-        )
-      );
+        );
+
+      visualResult =
+        addVisualAnalysisEvidence(
+          parsedAnalysis
+        );
     } else {
       evidenceList.appendChild(
         createEvidenceItem(
@@ -412,50 +579,11 @@ async function analyzeImageRecord(record) {
       ) &&
       metadata.aiIndicators.length > 0;
 
-    const visualIndicatorsDetected =
-      visualAnalysis.ok &&
-      hasSuspiciousVisualIndicators(
-        visualAnalysis.analysis
-      );
-
-    if (
-      aiMetadataDetected ||
-      visualIndicatorsDetected
-    ) {
-      statusTitle.textContent =
-        "Potential manipulation indicators detected";
-
-      statusDescription.textContent =
-        "Media Shield found one or more indicators that may be consistent with AI generation, AI editing, or digital manipulation. These indicators warrant additional verification but are not proof that the image is manipulated.";
-
-      return;
-    }
-
-    if (provenance.hasManifest) {
-      statusTitle.textContent =
-        "Content Credentials detected";
-
-      statusDescription.textContent =
-        "Media Shield found C2PA provenance information in this file and completed its available visual checks. Review all evidence together before deciding whether to trust the media.";
-
-      return;
-    }
-
-    if (!visualAnalysis.ok) {
-      statusTitle.textContent =
-        "Partial analysis complete";
-
-      statusDescription.textContent =
-        "Media Shield completed the local metadata and provenance checks, but visual-content analysis was unavailable. No authenticity conclusion can be made.";
-
-      return;
-    }
-
-    statusTitle.textContent =
-      "Available checks complete";
-
-    statusDescription.textContent =
-      "Media Shield inspected file characteristics, supported metadata, available Content Credentials, and visible manipulation indicators. No single check can prove that an image is authentic or manipulated.";
+    updateFinalStatus(
+      aiMetadataDetected,
+      provenance,
+      visualResult
+    );
   };
 
   image.onerror = () => {
