@@ -107,6 +107,64 @@ function buildMetadataDescription(metadata) {
   );
 }
 
+function buildProvenanceDescription(provenance) {
+  if (!provenance) {
+    return (
+      "The provenance checker did not return a result. " +
+      "No conclusion about authenticity should be drawn from this."
+    );
+  }
+
+  if (provenance.error) {
+    return (
+      "Content Credentials could not be verified for this file. " +
+      "This does not mean the image is fake or manipulated."
+    );
+  }
+
+  if (provenance.hasManifest) {
+    return (
+      "Content Credentials or C2PA provenance information was detected. " +
+      "Cryptographically verifiable provenance can provide useful information about the origin and editing history of supported media."
+    );
+  }
+
+  return (
+    "No C2PA Content Credentials were detected in this file. " +
+    "Many legitimate images do not contain Content Credentials, so their absence is not evidence that an image is fake or manipulated."
+  );
+}
+
+async function runProvenanceCheck(dataUrl) {
+  const provenanceApi = window.MediaShieldProvenance;
+
+  if (
+    !provenanceApi ||
+    typeof provenanceApi.inspectProvenance !== "function"
+  ) {
+    return {
+      checked: false,
+      hasManifest: false,
+      manifestStore: null,
+      error: "Provenance checker unavailable."
+    };
+  }
+
+  try {
+    return await provenanceApi.inspectProvenance(dataUrl);
+  } catch (error) {
+    return {
+      checked: true,
+      hasManifest: false,
+      manifestStore: null,
+      error:
+        error instanceof Error
+          ? error.message
+          : "C2PA inspection could not be completed."
+    };
+  }
+}
+
 async function analyzeImageRecord(record) {
   if (!record || !record.dataUrl) {
     showNoImageMessage();
@@ -129,7 +187,7 @@ async function analyzeImageRecord(record) {
 
   statusTitle.textContent = "Analysing image…";
   statusDescription.textContent =
-    "Media Shield is inspecting locally available file and metadata evidence.";
+    "Media Shield is inspecting locally available file, metadata, and provenance evidence.";
 
   const image = new Image();
 
@@ -172,7 +230,7 @@ async function analyzeImageRecord(record) {
             "AI-generation metadata indicator",
             `Explicit references associated with AI-generation software were found in the file: ${metadata.aiIndicators.join(
               ", "
-            )}. This is a meaningful metadata indicator, but it should not be treated as standalone proof that the displayed image is AI-generated.`
+            )}. This is a meaningful metadata indicator, but it should not be treated as standalone proof that the displayed image is AI-generated or manipulated.`
           )
         );
       }
@@ -186,25 +244,43 @@ async function analyzeImageRecord(record) {
       );
     }
 
+    const provenance = await runProvenanceCheck(record.dataUrl);
+
     evidenceList.appendChild(
       createEvidenceItem(
-        "neutral",
+        provenance.hasManifest ? "info" : "neutral",
         "Provenance",
-        "Content Credentials and cryptographically verifiable provenance have not yet been checked. Absence of a provenance result does not mean the image is fake."
+        buildProvenanceDescription(provenance)
       )
     );
 
-    if (metadata && metadata.aiIndicators.length > 0) {
+    const aiMetadataDetected =
+      metadata &&
+      Array.isArray(metadata.aiIndicators) &&
+      metadata.aiIndicators.length > 0;
+
+    if (aiMetadataDetected) {
       statusTitle.textContent = "Metadata indicator detected";
 
       statusDescription.textContent =
         "The file contains an explicit reference associated with AI-generation software. Additional verification is recommended. Media Shield does not treat metadata alone as proof that an image is AI-generated or manipulated.";
-    } else {
-      statusTitle.textContent = "Local inspection complete";
+
+      return;
+    }
+
+    if (provenance.hasManifest) {
+      statusTitle.textContent = "Content Credentials detected";
 
       statusDescription.textContent =
-        "File characteristics and supported metadata markers were inspected locally. No conclusion about authenticity can be made from these checks alone.";
+        "Media Shield found C2PA provenance information in this file. Review the available evidence alongside the visual content before deciding whether to trust the media.";
+
+      return;
     }
+
+    statusTitle.textContent = "Available checks complete";
+
+    statusDescription.textContent =
+      "Media Shield inspected file characteristics, supported metadata markers, and available Content Credentials. These checks alone cannot determine whether an image has been AI-generated or AI-edited.";
   };
 
   image.onerror = () => {
