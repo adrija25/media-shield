@@ -10,9 +10,37 @@ function getC2paInstance() {
   return c2paInstancePromise;
 }
 
-async function dataUrlToBlob(dataUrl) {
-  const response = await fetch(dataUrl);
-  return response.blob();
+function dataUrlToBlob(dataUrl) {
+  const commaIndex = dataUrl.indexOf(",");
+
+  if (commaIndex === -1) {
+    throw new Error("Invalid image data URL.");
+  }
+
+  const header = dataUrl.slice(0, commaIndex);
+  const encodedData = dataUrl.slice(commaIndex + 1);
+
+  const mimeMatch = header.match(/^data:([^;,]+)/);
+  const mimeType = mimeMatch ? mimeMatch[1] : "application/octet-stream";
+
+  let bytes;
+
+  if (header.includes(";base64")) {
+    const binaryString = atob(encodedData);
+
+    bytes = new Uint8Array(binaryString.length);
+
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+  } else {
+    const decodedText = decodeURIComponent(encodedData);
+    bytes = new TextEncoder().encode(decodedText);
+  }
+
+  return new Blob([bytes], {
+    type: mimeType
+  });
 }
 
 export async function inspectProvenance(dataUrl) {
@@ -25,7 +53,7 @@ export async function inspectProvenance(dataUrl) {
 
   try {
     const c2pa = await getC2paInstance();
-    const blob = await dataUrlToBlob(dataUrl);
+    const blob = dataUrlToBlob(dataUrl);
 
     const manifestStore = await c2pa.read(blob);
 
@@ -39,6 +67,7 @@ export async function inspectProvenance(dataUrl) {
     return result;
   } catch (error) {
     result.checked = true;
+
     result.error =
       error instanceof Error
         ? error.message
@@ -47,3 +76,10 @@ export async function inspectProvenance(dataUrl) {
     return result;
   }
 }
+
+// Expose the bundled provenance checker to Media Shield's
+// non-module analysis.js without requiring analysis.js itself
+// to become part of the Vite module bundle.
+window.MediaShieldProvenance = {
+  inspectProvenance
+};
