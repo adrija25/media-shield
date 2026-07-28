@@ -385,21 +385,20 @@ function normaliseAssessment(assessment) {
   const value =
     String(assessment || "")
       .toLowerCase()
-      .trim();
+      .trim()
+      .replace(/[.!:;]+$/g, "");
 
-  if (value.includes("strong")) {
-    return "strong";
-  }
+  const allowedAssessments = {
+    "low indicators": "low",
+    "some indicators": "some",
+    "strong indicators": "strong",
+    "inconclusive": "inconclusive"
+  };
 
-  if (value.includes("some")) {
-    return "some";
-  }
-
-  if (value.includes("low")) {
-    return "low";
-  }
-
-  return "inconclusive";
+  return (
+    allowedAssessments[value] ||
+    "inconclusive"
+  );
 }
 
 
