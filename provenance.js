@@ -21,7 +21,9 @@ function dataUrlToBlob(dataUrl) {
   const encodedData = dataUrl.slice(commaIndex + 1);
 
   const mimeMatch = header.match(/^data:([^;,]+)/);
-  const mimeType = mimeMatch ? mimeMatch[1] : "application/octet-stream";
+  const mimeType = mimeMatch
+    ? mimeMatch[1]
+    : "application/octet-stream";
 
   let bytes;
 
@@ -51,13 +53,24 @@ export async function inspectProvenance(dataUrl) {
     error: null
   };
 
+  let reader = null;
+
   try {
     const c2pa = await getC2paInstance();
     const blob = dataUrlToBlob(dataUrl);
 
-    const manifestStore = await c2pa.read(blob);
+    reader = await c2pa.reader.fromBlob(
+      blob.type,
+      blob
+    );
 
     result.checked = true;
+
+    if (!reader) {
+      return result;
+    }
+
+    const manifestStore = await reader.manifestStore();
 
     if (manifestStore) {
       result.hasManifest = true;
@@ -74,6 +87,17 @@ export async function inspectProvenance(dataUrl) {
         : "C2PA inspection could not be completed.";
 
     return result;
+  } finally {
+    if (reader) {
+      try {
+        await reader.free();
+      } catch (error) {
+        console.warn(
+          "Media Shield could not release the C2PA reader:",
+          error
+        );
+      }
+    }
   }
 }
 
