@@ -247,28 +247,122 @@ async function runProvenanceCheck(dataUrl) {
   ============================================================
   PRO VISUAL ANALYSIS
   ============================================================
+
+  VERSION 2:
+
+  The Pro visual-analysis Worker now independently verifies
+  the existing Media Shield Pro activation before Workers AI
+  is allowed to run.
+
+  No new activation is created here.
+
+  The extension sends the same token and installation ID that
+  were already authorised by the existing Media Shield
+  activation system.
+  ============================================================
 */
 
 
 async function runVisualAnalysis(dataUrl) {
   try {
-    const response = await fetch(
-      VISUAL_ANALYSIS_API,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          image: dataUrl
-        })
-      }
-    );
+    /*
+      Read the existing Media Shield Pro credentials.
+
+      These values were created/stored by popup.js during
+      the existing activation flow.
+    */
+
+    const stored =
+      await new Promise(
+        (resolve, reject) => {
+          chrome.storage.local.get(
+            [
+              "mediaShieldProToken",
+              "mediaShieldInstallationId"
+            ],
+            (result) => {
+              if (
+                chrome.runtime.lastError
+              ) {
+                reject(
+                  chrome.runtime.lastError
+                );
+
+                return;
+              }
+
+              resolve(result);
+            }
+          );
+        }
+      );
+
+    const token =
+      typeof stored.mediaShieldProToken === "string"
+        ? stored.mediaShieldProToken.trim()
+        : "";
+
+    const installationId =
+      typeof stored.mediaShieldInstallationId === "string"
+        ? stored.mediaShieldInstallationId.trim()
+        : "";
+
+
+    /*
+      A locally stored Pro flag is no longer sufficient to
+      access the paid Workers AI analysis.
+
+      Both credentials must exist before the request is made.
+    */
+
+    if (
+      !token ||
+      !installationId
+    ) {
+      throw new Error(
+        "Media Shield Pro authorisation information is unavailable. Please activate Media Shield Pro again."
+      );
+    }
+
+
+    /*
+      The server independently verifies:
+
+      1. token belongs to Media Shield Pro
+      2. installationId is authorised for that token
+      3. only then can Workers AI run
+    */
+
+    const response =
+      await fetch(
+        VISUAL_ANALYSIS_API,
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
+
+          body:
+            JSON.stringify({
+              image:
+                dataUrl,
+
+              token:
+                token,
+
+              installationId:
+                installationId
+            })
+        }
+      );
 
     let data;
 
     try {
-      data = await response.json();
+      data =
+        await response.json();
     } catch (error) {
       throw new Error(
         "The visual analysis service returned an unreadable response."
@@ -278,6 +372,7 @@ async function runVisualAnalysis(dataUrl) {
     if (
       !response.ok ||
       !data.ok ||
+      data.authorised !== true ||
       typeof data.analysis !== "string"
     ) {
       throw new Error(
@@ -286,10 +381,21 @@ async function runVisualAnalysis(dataUrl) {
       );
     }
 
+    const analysis =
+      data.analysis.trim();
+
+    if (!analysis) {
+      throw new Error(
+        "The visual analysis service returned no usable analysis."
+      );
+    }
+
     return {
       ok: true,
-      analysis: data.analysis
+      analysis:
+        analysis
     };
+
   } catch (error) {
     console.error(
       "Media Shield visual analysis error:",
@@ -324,20 +430,23 @@ function parseVisualAnalysis(rawAnalysis) {
     return result;
   }
 
-  const cleaned = rawAnalysis.trim();
+  const cleaned =
+    rawAnalysis.trim();
 
-  const assessmentMatch = cleaned.match(
-    /ASSESSMENT:\s*(.+?)(?=\n|SUMMARY:|$)/i
-  );
+  const assessmentMatch =
+    cleaned.match(
+      /ASSESSMENT:\s*(.+?)(?=\n|SUMMARY:|$)/i
+    );
 
   if (assessmentMatch) {
     result.assessment =
       assessmentMatch[1].trim();
   }
 
-  const summaryMatch = cleaned.match(
-    /SUMMARY:\s*([\s\S]*?)(?=\n\s*INDICATORS:|INDICATORS:|$)/i
-  );
+  const summaryMatch =
+    cleaned.match(
+      /SUMMARY:\s*([\s\S]*?)(?=\n\s*INDICATORS:|INDICATORS:|$)/i
+    );
 
   if (summaryMatch) {
     result.summary =
@@ -346,9 +455,10 @@ function parseVisualAnalysis(rawAnalysis) {
         .trim();
   }
 
-  const indicatorsMatch = cleaned.match(
-    /INDICATORS:\s*([\s\S]*?)(?=\n\s*LIMITATION:|LIMITATION:|$)/i
-  );
+  const indicatorsMatch =
+    cleaned.match(
+      /INDICATORS:\s*([\s\S]*?)(?=\n\s*LIMITATION:|LIMITATION:|$)/i
+    );
 
   if (indicatorsMatch) {
     result.indicators =
@@ -356,15 +466,19 @@ function parseVisualAnalysis(rawAnalysis) {
         .split("\n")
         .map((line) =>
           line
-            .replace(/^\s*[-•]\s*/, "")
+            .replace(
+              /^\s*[-•]\s*/,
+              ""
+            )
             .trim()
         )
         .filter(Boolean);
   }
 
-  const limitationMatch = cleaned.match(
-    /LIMITATION:\s*([\s\S]*?)$/i
-  );
+  const limitationMatch =
+    cleaned.match(
+      /LIMITATION:\s*([\s\S]*?)$/i
+    );
 
   if (limitationMatch) {
     const limitation =
@@ -373,12 +487,29 @@ function parseVisualAnalysis(rawAnalysis) {
         .trim();
 
     if (limitation) {
-      result.limitation = limitation;
+      result.limitation =
+        limitation;
     }
   }
 
   return result;
 }
+
+
+/*
+  ============================================================
+  STRICT ASSESSMENT NORMALISATION
+  ============================================================
+
+  VERSION 2:
+
+  Only the four assessment values requested from the Worker
+  are accepted.
+
+  Unexpected or malformed model output safely falls back to
+  "inconclusive".
+  ============================================================
+*/
 
 
 function normaliseAssessment(assessment) {
@@ -408,15 +539,20 @@ function addVisualAnalysisEvidence(parsedAnalysis) {
       parsedAnalysis.assessment
     );
 
-  let indicatorType = "neutral";
+  let indicatorType =
+    "neutral";
 
   if (
     assessmentType === "some" ||
     assessmentType === "strong"
   ) {
-    indicatorType = "warning";
-  } else if (assessmentType === "low") {
-    indicatorType = "info";
+    indicatorType =
+      "warning";
+  } else if (
+    assessmentType === "low"
+  ) {
+    indicatorType =
+      "info";
   }
 
   evidenceList.appendChild(
@@ -428,7 +564,10 @@ function addVisualAnalysisEvidence(parsedAnalysis) {
     )
   );
 
-  if (parsedAnalysis.indicators.length > 0) {
+  if (
+    parsedAnalysis.indicators.length >
+    0
+  ) {
     parsedAnalysis.indicators.forEach(
       (indicatorText) => {
         evidenceList.appendChild(
@@ -489,7 +628,9 @@ function updateProFinalStatus(
     return;
   }
 
-  if (visualResult === "low") {
+  if (
+    visualResult === "low"
+  ) {
     statusTitle.textContent =
       "No strong manipulation indicators detected";
 
@@ -499,7 +640,9 @@ function updateProFinalStatus(
     return;
   }
 
-  if (provenance?.hasManifest) {
+  if (
+    provenance?.hasManifest
+  ) {
     statusTitle.textContent =
       "Content Credentials detected";
 
@@ -531,7 +674,9 @@ function updateFreeFinalStatus(
     return;
   }
 
-  if (provenance?.hasManifest) {
+  if (
+    provenance?.hasManifest
+  ) {
     statusTitle.textContent =
       "Content Credentials detected";
 
@@ -557,7 +702,10 @@ function updateFreeFinalStatus(
 
 
 async function analyzeImageRecord(record) {
-  if (!record || !record.dataUrl) {
+  if (
+    !record ||
+    !record.dataUrl
+  ) {
     showNoImageMessage();
     return;
   }
@@ -566,17 +714,25 @@ async function analyzeImageRecord(record) {
     await getProStatus();
 
   fileName.textContent =
-    record.name || "Selected image";
+    record.name ||
+    "Selected image";
 
   const details = [];
 
   if (record.type) {
-    details.push(record.type);
+    details.push(
+      record.type
+    );
   }
 
-  if (typeof record.size === "number") {
+  if (
+    typeof record.size ===
+    "number"
+  ) {
     details.push(
-      formatFileSize(record.size)
+      formatFileSize(
+        record.size
+      )
     );
   }
 
@@ -591,184 +747,207 @@ async function analyzeImageRecord(record) {
       ? "Media Shield Pro is examining file evidence, metadata, provenance, and visible image characteristics."
       : "Media Shield is examining locally available file evidence, metadata, and provenance.";
 
-  const image = new Image();
+  const image =
+    new Image();
 
-  image.onload = async () => {
-    previewContainer.innerHTML = "";
-    previewContainer.appendChild(image);
+  image.onload =
+    async () => {
+      previewContainer.innerHTML =
+        "";
 
-    evidenceList.innerHTML = "";
+      previewContainer.appendChild(
+        image
+      );
 
-    evidenceList.appendChild(
-      createEvidenceItem(
-        "info",
-        "File characteristics",
-        `Image dimensions: ${image.naturalWidth} × ${image.naturalHeight} pixels.${
-          record.type
-            ? ` File type: ${record.type}.`
-            : ""
-        }`
-      )
-    );
-
-    let metadata = null;
-
-    try {
-      metadata =
-        await inspectImageMetadata(
-          record.dataUrl,
-          record.type
-        );
+      evidenceList.innerHTML =
+        "";
 
       evidenceList.appendChild(
         createEvidenceItem(
-          metadata.aiIndicators.length > 0
-            ? "warning"
-            : "info",
-          "Metadata",
-          buildMetadataDescription(metadata)
+          "info",
+          "File characteristics",
+          `Image dimensions: ${image.naturalWidth} × ${image.naturalHeight} pixels.${
+            record.type
+              ? ` File type: ${record.type}.`
+              : ""
+          }`
         )
       );
 
-      if (
-        metadata.aiIndicators.length > 0
-      ) {
+      let metadata =
+        null;
+
+      try {
+        metadata =
+          await inspectImageMetadata(
+            record.dataUrl,
+            record.type
+          );
+
         evidenceList.appendChild(
           createEvidenceItem(
-            "warning",
-            "AI-generation metadata indicator",
-            `Explicit references associated with AI-generation software were found in the file: ${metadata.aiIndicators.join(
-              ", "
-            )}. This is a meaningful metadata indicator, but it should not be treated as standalone proof that the displayed image is AI-generated or manipulated.`
+            metadata.aiIndicators.length >
+              0
+              ? "warning"
+              : "info",
+            "Metadata",
+            buildMetadataDescription(
+              metadata
+            )
+          )
+        );
+
+        if (
+          metadata.aiIndicators.length >
+          0
+        ) {
+          evidenceList.appendChild(
+            createEvidenceItem(
+              "warning",
+              "AI-generation metadata indicator",
+              `Explicit references associated with AI-generation software were found in the file: ${metadata.aiIndicators.join(
+                ", "
+              )}. This is a meaningful metadata indicator, but it should not be treated as standalone proof that the displayed image is AI-generated or manipulated.`
+            )
+          );
+        }
+
+      } catch (error) {
+        console.error(
+          "Metadata inspection error:",
+          error
+        );
+
+        evidenceList.appendChild(
+          createEvidenceItem(
+            "neutral",
+            "Metadata",
+            "Media Shield could not complete the local metadata inspection for this file. No conclusion should be drawn from this."
           )
         );
       }
-    } catch (error) {
-      console.error(
-        "Metadata inspection error:",
-        error
-      );
+
+      const provenance =
+        await runProvenanceCheck(
+          record.dataUrl
+        );
 
       evidenceList.appendChild(
         createEvidenceItem(
-          "neutral",
-          "Metadata",
-          "Media Shield could not complete the local metadata inspection for this file. No conclusion should be drawn from this."
+          provenance.hasManifest
+            ? "info"
+            : "neutral",
+          "Provenance",
+          buildProvenanceDescription(
+            provenance
+          )
         )
       );
-    }
 
-    const provenance =
-      await runProvenanceCheck(
-        record.dataUrl
-      );
+      const aiMetadataDetected =
+        metadata &&
+        Array.isArray(
+          metadata.aiIndicators
+        ) &&
+        metadata.aiIndicators.length >
+          0;
 
-    evidenceList.appendChild(
-      createEvidenceItem(
-        provenance.hasManifest
-          ? "info"
-          : "neutral",
-        "Provenance",
-        buildProvenanceDescription(
+
+      /*
+        ======================================================
+        FREE USER
+        ======================================================
+
+        Free behaviour is unchanged.
+
+        Workers AI is NOT called for Free users.
+        ======================================================
+      */
+
+
+      if (!isPro) {
+        evidenceList.appendChild(
+          createEvidenceItem(
+            "neutral",
+            "Media Shield Pro",
+            "Visual AI-generation and manipulation analysis is available with Media Shield Pro. Free analysis includes file characteristics, supported metadata inspection, and available provenance checks."
+          )
+        );
+
+        updateFreeFinalStatus(
+          aiMetadataDetected,
           provenance
-        )
-      )
-    );
+        );
 
-    const aiMetadataDetected =
-      metadata &&
-      Array.isArray(
-        metadata.aiIndicators
-      ) &&
-      metadata.aiIndicators.length > 0;
+        return;
+      }
 
 
-    /*
-      ========================================================
-      FREE USER
+      /*
+        ======================================================
+        PRO USER
+        ======================================================
 
-      Stop here.
+        Version 2 still reaches Workers AI only for a locally
+        activated Pro user.
 
-      The Workers AI visual-analysis endpoint is deliberately
-      NOT called for Free users.
-      ========================================================
-    */
+        The Worker then performs a SECOND server-side check
+        of the token + installation ID before AI can run.
+        ======================================================
+      */
 
 
-    if (!isPro) {
-      evidenceList.appendChild(
-        createEvidenceItem(
-          "neutral",
-          "Media Shield Pro",
-          "Visual AI-generation and manipulation analysis is available with Media Shield Pro. Free analysis includes file characteristics, supported metadata inspection, and available provenance checks."
-        )
-      );
+      statusTitle.textContent =
+        "Running Pro visual analysis…";
 
-      updateFreeFinalStatus(
+      statusDescription.textContent =
+        "Media Shield Pro is examining the visible image for potential AI-generation, AI-editing, and manipulation indicators.";
+
+      const visualAnalysis =
+        await runVisualAnalysis(
+          record.dataUrl
+        );
+
+      let visualResult =
+        "inconclusive";
+
+      if (
+        visualAnalysis.ok
+      ) {
+        const parsedAnalysis =
+          parseVisualAnalysis(
+            visualAnalysis.analysis
+          );
+
+        visualResult =
+          addVisualAnalysisEvidence(
+            parsedAnalysis
+          );
+
+      } else {
+        evidenceList.appendChild(
+          createEvidenceItem(
+            "neutral",
+            "Pro visual manipulation analysis",
+            "The visual analysis service could not complete this check. No conclusion should be drawn from the missing result."
+          )
+        );
+      }
+
+      updateProFinalStatus(
         aiMetadataDetected,
-        provenance
+        provenance,
+        visualResult
       );
+    };
 
-      return;
-    }
-
-
-    /*
-      ========================================================
-      PRO USER
-
-      Only an activated Pro installation reaches the
-      Workers AI visual-analysis request below.
-      ========================================================
-    */
-
-
-    statusTitle.textContent =
-      "Running Pro visual analysis…";
-
-    statusDescription.textContent =
-      "Media Shield Pro is examining the visible image for potential AI-generation, AI-editing, and manipulation indicators.";
-
-    const visualAnalysis =
-      await runVisualAnalysis(
-        record.dataUrl
-      );
-
-    let visualResult =
-      "inconclusive";
-
-    if (visualAnalysis.ok) {
-      const parsedAnalysis =
-        parseVisualAnalysis(
-          visualAnalysis.analysis
-        );
-
-      visualResult =
-        addVisualAnalysisEvidence(
-          parsedAnalysis
-        );
-    } else {
-      evidenceList.appendChild(
-        createEvidenceItem(
-          "neutral",
-          "Pro visual manipulation analysis",
-          "The visual analysis service could not complete this check. No conclusion should be drawn from the missing result."
-        )
-      );
-    }
-
-    updateProFinalStatus(
-      aiMetadataDetected,
-      provenance,
-      visualResult
-    );
-  };
 
   image.onerror = () => {
     previewContainer.innerHTML =
       "<p>The selected image could not be displayed.</p>";
 
-    evidenceList.innerHTML = "";
+    evidenceList.innerHTML =
+      "";
 
     evidenceList.appendChild(
       createEvidenceItem(
@@ -785,7 +964,9 @@ async function analyzeImageRecord(record) {
       "Media Shield could not safely read the selected image.";
   };
 
-  image.src = record.dataUrl;
+
+  image.src =
+    record.dataUrl;
 }
 
 
@@ -820,9 +1001,13 @@ if (checkAnotherButton) {
 
 
 chrome.storage.local.get(
-  ["mediaShieldPendingImage"],
+  [
+    "mediaShieldPendingImage"
+  ],
   (result) => {
-    if (chrome.runtime.lastError) {
+    if (
+      chrome.runtime.lastError
+    ) {
       statusTitle.textContent =
         "Image could not be accessed";
 
