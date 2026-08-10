@@ -77,26 +77,53 @@ function formatFileSize(bytes) {
 }
 
 
-function createEvidenceItem(type, title, description) {
-  const article = document.createElement("article");
-  article.className = "evidence-item";
+function createEvidenceItem(
+  type,
+  title,
+  description
+) {
+  const article =
+    document.createElement("article");
 
-  const indicator = document.createElement("div");
-  indicator.className = `indicator ${type}`;
+  article.className =
+    "evidence-item";
 
-  const content = document.createElement("div");
+  const indicator =
+    document.createElement("div");
 
-  const heading = document.createElement("h4");
-  heading.textContent = title;
+  indicator.className =
+    `indicator ${type}`;
 
-  const text = document.createElement("p");
-  text.textContent = description;
+  const content =
+    document.createElement("div");
 
-  content.appendChild(heading);
-  content.appendChild(text);
+  const heading =
+    document.createElement("h4");
 
-  article.appendChild(indicator);
-  article.appendChild(content);
+  heading.textContent =
+    title;
+
+  const text =
+    document.createElement("p");
+
+  text.textContent =
+    description;
+
+  content.appendChild(
+    heading
+  );
+
+  content.appendChild(
+    text
+  );
+
+  article.appendChild(
+    indicator
+  );
+
+  article.appendChild(
+    content
+  );
 
   return article;
 }
@@ -106,14 +133,20 @@ function showNoImageMessage() {
   previewContainer.innerHTML =
     "<p>No image is currently available for analysis.</p>";
 
-  fileName.textContent = "No image selected";
-  fileDetails.textContent = "";
+  fileName.textContent =
+    "No image selected";
 
-  statusTitle.textContent = "No analysis available";
+  fileDetails.textContent =
+    "";
+
+  statusTitle.textContent =
+    "No analysis available";
+
   statusDescription.textContent =
     "Return to Media Shield and select an image to begin a check.";
 
-  evidenceList.innerHTML = "";
+  evidenceList.innerHTML =
+    "";
 
   evidenceList.appendChild(
     createEvidenceItem(
@@ -127,38 +160,70 @@ function showNoImageMessage() {
 
 /*
   ============================================================
-  INPUT QUALITY / RELIABILITY
+  IMAGE RELIABILITY
   ============================================================
 */
 
 
-function assessImageReliability(image) {
-  const width = Number(image?.naturalWidth || 0);
-  const height = Number(image?.naturalHeight || 0);
+function assessImageReliability(
+  image
+) {
+  const width =
+    Number(
+      image?.naturalWidth || 0
+    );
+
+  const height =
+    Number(
+      image?.naturalHeight || 0
+    );
 
   const result = {
     level: "good",
     width,
     height,
+    pixelCount:
+      width * height,
+    aspectRatio:
+      0,
     reasons: []
   };
 
-  if (!width || !height) {
-    result.level = "limited";
+  if (
+    !width ||
+    !height
+  ) {
+    result.level =
+      "limited";
+
     result.reasons.push(
-      "The image dimensions could not be determined."
+      "Image dimensions could not be determined."
     );
 
     return result;
   }
 
+  result.aspectRatio =
+    Math.max(
+      width,
+      height
+    ) /
+    Math.min(
+      width,
+      height
+    );
+
 
   /*
-    Very small images provide limited visual detail.
+    Low-resolution images.
   */
 
-  if (width < 400 || height < 400) {
-    result.level = "limited";
+  if (
+    width < 400 ||
+    height < 400
+  ) {
+    result.level =
+      "limited";
 
     result.reasons.push(
       "The image has relatively low pixel dimensions."
@@ -167,15 +232,14 @@ function assessImageReliability(image) {
 
 
   /*
-    Extremely small total pixel area is particularly
-    difficult for visual inspection.
+    Very small total image area.
   */
 
-  const pixelCount =
-    width * height;
-
-  if (pixelCount < 250000) {
-    result.level = "limited";
+  if (
+    result.pixelCount < 250000
+  ) {
+    result.level =
+      "limited";
 
     if (
       !result.reasons.includes(
@@ -190,29 +254,25 @@ function assessImageReliability(image) {
 
 
   /*
-    Extremely unusual aspect ratios can make interpretation
-    more difficult, but are not themselves suspicious.
+    Extremely unusual aspect ratio.
+
+    This is a caution, not a manipulation signal.
   */
 
-  const aspectRatio =
-    Math.max(width, height) /
-    Math.min(width, height);
+  if (
+    result.aspectRatio > 5
+  ) {
+    if (
+      result.level === "good"
+    ) {
+      result.level =
+        "caution";
+    }
 
-  if (aspectRatio > 5) {
     result.reasons.push(
       "The image has an unusually wide or tall aspect ratio."
     );
-
-    if (result.level === "good") {
-      result.level = "caution";
-    }
   }
-
-
-  /*
-    Very high resolution is not a problem. We intentionally
-    do not penalise large images.
-    */
 
   return result;
 }
@@ -226,7 +286,8 @@ function buildReliabilityDescription(
   ) {
     return (
       "The image has limited visual detail for forensic inspection. " +
-      "Visual-analysis results should be treated with additional caution and should not be interpreted as proof of authenticity or manipulation."
+      "Visual-analysis results should be treated with additional caution. " +
+      "Limited image quality is not itself evidence of manipulation."
     );
   }
 
@@ -249,16 +310,21 @@ function buildReliabilityDescription(
 function addReliabilityEvidence(
   reliability
 ) {
-  let type = "info";
+  let type =
+    "info";
 
   if (
     reliability.level === "limited"
   ) {
-    type = "warning";
-  } else if (
+    type =
+      "warning";
+  }
+
+  if (
     reliability.level === "caution"
   ) {
-    type = "neutral";
+    type =
+      "neutral";
   }
 
   evidenceList.appendChild(
@@ -280,36 +346,62 @@ function addReliabilityEvidence(
 */
 
 
-function buildMetadataDescription(metadata) {
+function buildMetadataDescription(
+  metadata
+) {
   const findings = [];
 
-  if (metadata.hasExif) {
-    findings.push("EXIF metadata container detected");
+  if (
+    metadata.hasExif
+  ) {
+    findings.push(
+      "EXIF metadata container detected"
+    );
   }
 
-  if (metadata.hasXmp) {
-    findings.push("XMP metadata detected");
+  if (
+    metadata.hasXmp
+  ) {
+    findings.push(
+      "XMP metadata detected"
+    );
   }
 
-  if (metadata.hasIccProfile) {
-    findings.push("ICC colour profile detected");
+  if (
+    metadata.hasIccProfile
+  ) {
+    findings.push(
+      "ICC colour profile detected"
+    );
   }
 
-  if (metadata.hasPhotoshopResource) {
-    findings.push("Photoshop resource metadata detected");
+  if (
+    metadata.hasPhotoshopResource
+  ) {
+    findings.push(
+      "Photoshop resource metadata detected"
+    );
   }
 
-  if (metadata.softwareIndicators.length > 0) {
+  if (
+    metadata.softwareIndicators.length > 0
+  ) {
     findings.push(
       `Software references found: ${metadata.softwareIndicators.join(", ")}`
     );
   }
 
-  if (metadata.comments.length > 0) {
-    findings.push("Embedded JPEG comment data detected");
+  if (
+    metadata.comments.length > 0
+  ) {
+    findings.push(
+      "Embedded JPEG comment data detected"
+    );
   }
 
-  if (findings.length === 0) {
+  if (
+    findings.length === 0
+  ) {
     return (
       "No supported metadata markers were detected by this local check. " +
       "This is not evidence that the image is AI-generated or manipulated. " +
@@ -331,7 +423,9 @@ function buildMetadataDescription(metadata) {
 */
 
 
-function buildProvenanceDescription(provenance) {
+function buildProvenanceDescription(
+  provenance
+) {
   if (!provenance) {
     return (
       "The provenance checker did not return a result. " +
@@ -339,17 +433,21 @@ function buildProvenanceDescription(provenance) {
     );
   }
 
-  if (provenance.error) {
+  if (
+    provenance.error
+  ) {
     return (
       "Content Credentials could not be verified for this file. " +
       "This does not mean the image is fake or manipulated."
     );
   }
 
-  if (provenance.hasManifest) {
+  if (
+    provenance.hasManifest
+  ) {
     return (
       "Content Credentials or C2PA provenance information was detected. " +
-      "Available provenance details are shown below when they can be read from the credential."
+      "Available provenance details are shown when they can be read from the credential."
     );
   }
 
@@ -360,14 +458,9 @@ function buildProvenanceDescription(provenance) {
 }
 
 
-/*
-  ============================================================
-  SAFE PROVENANCE HELPERS
-  ============================================================
-*/
-
-
-function safeString(value) {
+function safeString(
+  value
+) {
   if (
     typeof value !== "string"
   ) {
@@ -375,12 +468,18 @@ function safeString(value) {
   }
 
   return value
-    .replace(/\s+/g, " ")
+    .replace(
+      /\s+/g,
+      " "
+    )
     .trim();
 }
 
 
-function getFirstString(object, keys) {
+function getFirstString(
+  object,
+  keys
+) {
   if (
     !object ||
     typeof object !== "object"
@@ -388,13 +487,17 @@ function getFirstString(object, keys) {
     return "";
   }
 
-  for (const key of keys) {
+  for (
+    const key of keys
+  ) {
     const value =
       safeString(
         object[key]
       );
 
-    if (value) {
+    if (
+      value
+    ) {
       return value;
     }
   }
@@ -403,21 +506,13 @@ function getFirstString(object, keys) {
 }
 
 
-function getManifestStoreObject(provenance) {
+function getActiveManifest(
+  manifestStore
+) {
   if (
-    !provenance ||
-    !provenance.manifestStore ||
-    typeof provenance.manifestStore !== "object"
+    !manifestStore ||
+    typeof manifestStore !== "object"
   ) {
-    return null;
-  }
-
-  return provenance.manifestStore;
-}
-
-
-function getActiveManifest(manifestStore) {
-  if (!manifestStore) {
     return null;
   }
 
@@ -446,36 +541,25 @@ function getActiveManifest(manifestStore) {
 }
 
 
-function getManifestMap(manifestStore) {
-  if (!manifestStore) {
-    return null;
-  }
-
-  if (
-    manifestStore.manifests &&
-    typeof manifestStore.manifests === "object"
-  ) {
-    return manifestStore.manifests;
-  }
-
-  return null;
-}
-
-
 function getManifestFromMap(
   manifestStore,
   activeManifest
 ) {
+  if (
+    !manifestStore ||
+    typeof manifestStore !== "object"
+  ) {
+    return activeManifest;
+  }
+
   const manifests =
-    getManifestMap(
-      manifestStore
-    );
+    manifestStore.manifests;
 
   if (
     !manifests ||
     typeof manifests !== "object"
   ) {
-    return null;
+    return activeManifest;
   }
 
   const activeLabel =
@@ -496,24 +580,21 @@ function getManifestFromMap(
   }
 
   if (
-    activeManifest &&
-    typeof activeManifest === "object"
+    activeManifest
   ) {
     return activeManifest;
   }
 
-  const manifestKeys =
+  const keys =
     Object.keys(
       manifests
     );
 
   if (
-    manifestKeys.length === 1
+    keys.length === 1
   ) {
     const onlyManifest =
-      manifests[
-        manifestKeys[0]
-      ];
+      manifests[keys[0]];
 
     if (
       onlyManifest &&
@@ -541,14 +622,16 @@ function extractProvenanceDetails(
     validation: ""
   };
 
-  const manifestStore =
-    getManifestStoreObject(
-      provenance
-    );
-
-  if (!manifestStore) {
+  if (
+    !provenance ||
+    !provenance.manifestStore ||
+    typeof provenance.manifestStore !== "object"
+  ) {
     return details;
   }
+
+  const manifestStore =
+    provenance.manifestStore;
 
   const activeManifest =
     getActiveManifest(
@@ -562,11 +645,14 @@ function extractProvenanceDetails(
     ) ||
     activeManifest;
 
-  if (!manifest) {
+  if (
+    !manifest
+  ) {
     return details;
   }
 
-  details.available = true;
+  details.available =
+    true;
 
   details.claimGenerator =
     getFirstString(
@@ -577,7 +663,10 @@ function extractProvenanceDetails(
       ]
     );
 
-  if (!details.claimGenerator) {
+  if (
+    !details.claimGenerator &&
+    manifest.claim
+  ) {
     details.claimGenerator =
       getFirstString(
         manifest.claim,
@@ -616,13 +705,6 @@ function extractProvenanceDetails(
       ]
     );
 
-  const assertions =
-    Array.isArray(
-      manifest.assertions
-    )
-      ? manifest.assertions
-      : [];
-
   const actionCandidates = [];
 
   if (
@@ -645,60 +727,24 @@ function extractProvenanceDetails(
     );
   }
 
-  assertions.forEach(
-    (assertion) => {
-      if (
-        !assertion ||
-        typeof assertion !== "object"
-      ) {
-        return;
-      }
-
-      const label =
-        getFirstString(
-          assertion,
-          [
-            "label",
-            "type"
-          ]
-        );
-
-      if (
-        label &&
-        (
-          label.toLowerCase().includes("action") ||
-          label.toLowerCase().includes("c2pa.action")
-        )
-      ) {
-        if (
-          Array.isArray(
-            assertion.data
-          )
-        ) {
-          actionCandidates.push(
-            ...assertion.data
-          );
-        }
-      }
-    }
-  );
-
   actionCandidates.forEach(
     (action) => {
       if (
         typeof action === "string"
       ) {
-        const cleaned =
-          safeString(action);
+        const value =
+          safeString(
+            action
+          );
 
         if (
-          cleaned &&
+          value &&
           !details.actions.includes(
-            cleaned
+            value
           )
         ) {
           details.actions.push(
-            cleaned
+            value
           );
         }
 
@@ -712,7 +758,7 @@ function extractProvenanceDetails(
         return;
       }
 
-      const actionName =
+      const value =
         getFirstString(
           action,
           [
@@ -723,13 +769,13 @@ function extractProvenanceDetails(
         );
 
       if (
-        actionName &&
+        value &&
         !details.actions.includes(
-          actionName
+          value
         )
       ) {
         details.actions.push(
-          actionName
+          value
         );
       }
     }
@@ -762,19 +808,19 @@ function extractProvenanceDetails(
       if (
         typeof ingredient === "string"
       ) {
-        const cleaned =
+        const value =
           safeString(
             ingredient
           );
 
         if (
-          cleaned &&
+          value &&
           !details.ingredients.includes(
-            cleaned
+            value
           )
         ) {
           details.ingredients.push(
-            cleaned
+            value
           );
         }
 
@@ -788,7 +834,7 @@ function extractProvenanceDetails(
         return;
       }
 
-      const title =
+      const value =
         getFirstString(
           ingredient,
           [
@@ -803,13 +849,13 @@ function extractProvenanceDetails(
         );
 
       if (
-        title &&
+        value &&
         !details.ingredients.includes(
-          title
+          value
         )
       ) {
         details.ingredients.push(
-          title
+          value
         );
       }
     }
@@ -823,16 +869,19 @@ function extractProvenanceDetails(
   ];
 
   for (
-    const candidate of validationCandidates
+    const candidate of
+    validationCandidates
   ) {
-    const validation =
+    const value =
       safeString(
         candidate
       );
 
-    if (validation) {
+    if (
+      value
+    ) {
       details.validation =
-        validation;
+        value;
 
       break;
     }
@@ -858,7 +907,9 @@ function addProvenanceEvidence(
       provenance
     );
 
-  if (!details.available) {
+  if (
+    !details.available
+  ) {
     return;
   }
 
@@ -903,7 +954,7 @@ function addProvenanceEvidence(
       createEvidenceItem(
         "info",
         "Content Credentials details",
-        summaryParts.join(". ") + "."
+        `${summaryParts.join(". ")}.`
       )
     );
   }
@@ -944,13 +995,6 @@ function addProvenanceEvidence(
     );
   }
 }
-
-
-/*
-  ============================================================
-  PROVENANCE CHECK
-  ============================================================
-*/
 
 
 async function runProvenanceCheck(
@@ -997,34 +1041,41 @@ async function runProvenanceCheck(
 */
 
 
+async function getStoredProCredentials() {
+  return new Promise(
+    (resolve, reject) => {
+      chrome.storage.local.get(
+        [
+          "mediaShieldProToken",
+          "mediaShieldInstallationId"
+        ],
+        (result) => {
+          if (
+            chrome.runtime.lastError
+          ) {
+            reject(
+              chrome.runtime.lastError
+            );
+
+            return;
+          }
+
+          resolve(
+            result
+          );
+        }
+      );
+    }
+  );
+}
+
+
 async function runVisualAnalysis(
   dataUrl
 ) {
   try {
     const stored =
-      await new Promise(
-        (resolve, reject) => {
-          chrome.storage.local.get(
-            [
-              "mediaShieldProToken",
-              "mediaShieldInstallationId"
-            ],
-            (result) => {
-              if (
-                chrome.runtime.lastError
-              ) {
-                reject(
-                  chrome.runtime.lastError
-                );
-
-                return;
-              }
-
-              resolve(result);
-            }
-          );
-        }
-      );
+      await getStoredProCredentials();
 
     const token =
       typeof stored.mediaShieldProToken ===
@@ -1098,7 +1149,9 @@ async function runVisualAnalysis(
     const analysis =
       data.analysis.trim();
 
-    if (!analysis) {
+    if (
+      !analysis
+    ) {
       throw new Error(
         "The visual analysis service returned no usable analysis."
       );
@@ -1152,8 +1205,7 @@ function parseVisualAnalysis(
   };
 
   if (
-    typeof rawAnalysis !==
-      "string" ||
+    typeof rawAnalysis !== "string" ||
     !rawAnalysis.trim()
   ) {
     return result;
@@ -1230,7 +1282,9 @@ function parseVisualAnalysis(
         )
         .trim();
 
-    if (limitation) {
+    if (
+      limitation
+    ) {
       result.limitation =
         limitation;
     }
@@ -1238,13 +1292,6 @@ function parseVisualAnalysis(
 
   return result;
 }
-
-
-/*
-  ============================================================
-  ASSESSMENT NORMALISATION
-  ============================================================
-*/
 
 
 function normaliseAssessment(
@@ -1261,30 +1308,31 @@ function normaliseAssessment(
         ""
       );
 
-  const allowedAssessments = {
-    "low indicators":
-      "low",
+  if (
+    value === "strong indicators"
+  ) {
+    return "strong";
+  }
 
-    "some indicators":
-      "some",
+  if (
+    value === "some indicators"
+  ) {
+    return "some";
+  }
 
-    "strong indicators":
-      "strong",
+  if (
+    value === "low indicators"
+  ) {
+    return "low";
+  }
 
-    "inconclusive":
-      "inconclusive"
-  };
-
-  return (
-    allowedAssessments[value] ||
-    "inconclusive"
-  );
+  return "inconclusive";
 }
 
 
 /*
   ============================================================
-  V3 PRO VISUAL EVIDENCE
+  VISUAL EVIDENCE
   ============================================================
 */
 
@@ -1420,81 +1468,290 @@ function addVisualAnalysisEvidence(
 
 /*
   ============================================================
-  FINAL STATUS
+  EVIDENCE-AWARE FINAL ASSESSMENT
   ============================================================
 */
 
 
-function updateProFinalStatus(
-  aiMetadataDetected,
+function buildEvidenceProfile(
+  metadata,
   provenance,
   visualResult,
-  reliability
+  reliability,
+  visualAnalysisAvailable
+) {
+  const profile = {
+    metadataSignal:
+      "none",
+
+    provenanceSignal:
+      provenance?.hasManifest
+        ? "present"
+        : "none",
+
+    visualSignal:
+      visualAnalysisAvailable
+        ? visualResult
+        : "unavailable",
+
+    reliability:
+      reliability?.level ||
+      "unknown",
+
+    hasAiMetadata:
+      Boolean(
+        metadata &&
+        Array.isArray(
+          metadata.aiIndicators
+        ) &&
+        metadata.aiIndicators.length > 0
+      ),
+
+    hasProvenance:
+      Boolean(
+        provenance &&
+        provenance.hasManifest
+      )
+  };
+
+  if (
+    profile.hasAiMetadata
+  ) {
+    profile.metadataSignal =
+      "ai-indicator";
+  } else if (
+    metadata &&
+    (
+      metadata.hasExif ||
+      metadata.hasXmp ||
+      metadata.hasPhotoshopResource ||
+      metadata.softwareIndicators.length > 0
+    )
+  ) {
+    profile.metadataSignal =
+      "general";
+  }
+
+  return profile;
+}
+
+
+function determineFinalAssessment(
+  profile
 ) {
   /*
-    A limited-quality image should not be presented as a
-    confidently negative visual result.
+    Strong visual result is meaningful, but is still described
+    as an indicator rather than proof.
   */
 
   if (
-    visualResult === "low" &&
-    reliability.level === "limited"
+    profile.visualSignal === "strong"
   ) {
-    statusTitle.textContent =
-      "No strong indicators detected, but image quality is limited";
+    return "potential";
+  }
 
-    statusDescription.textContent =
-      "The available checks did not identify strong manipulation indicators, but the image provides limited visual detail. Treat this result cautiously and do not interpret it as evidence that the image is authentic.";
+  /*
+    Some visual indicators combined with explicit AI metadata
+    strengthen the overall concern.
+  */
 
-    return;
+  if (
+    profile.visualSignal === "some" &&
+    profile.hasAiMetadata
+  ) {
+    return "potential";
+  }
+
+  /*
+    Explicit AI metadata alone is a meaningful signal, but not
+    proof of what happened to the visible image.
+  */
+
+  if (
+    profile.hasAiMetadata
+  ) {
+    return "metadata";
+  }
+
+  /*
+    Some visual indicators on their own remain potential
+    indicators.
+  */
+
+  if (
+    profile.visualSignal === "some"
+  ) {
+    return "potential";
+  }
+
+  /*
+    A limited-quality image must not receive a strong negative
+    interpretation from a low visual result.
+  */
+
+  if (
+    profile.visualSignal === "low" &&
+    profile.reliability === "limited"
+  ) {
+    return "limited";
+  }
+
+  /*
+    Low visual indicators with no contradictory signal.
+  */
+
+  if (
+    profile.visualSignal === "low"
+  ) {
+    return "no-strong";
+  }
+
+  /*
+    Provenance is informative, but its presence does not mean
+    the image is authentic and its absence does not mean it is
+    fake.
+  */
+
+  if (
+    profile.hasProvenance
+  ) {
+    return "provenance";
+  }
+
+  return "inconclusive";
+}
+
+
+function buildWhatThisMeans(
+  finalAssessment,
+  profile
+) {
+  if (
+    finalAssessment === "potential"
+  ) {
+    return (
+      "Media Shield found visual characteristics that may be consistent with AI generation, AI editing, compositing, retouching, or other digital manipulation. " +
+      "These are indicators rather than proof, so the original source and surrounding context should be checked before relying on the image."
+    );
   }
 
   if (
-    aiMetadataDetected
+    finalAssessment === "metadata"
+  ) {
+    return (
+      "Media Shield found an explicit metadata reference associated with AI-generation software. " +
+      "This can be useful evidence about the file's processing history, but metadata alone cannot establish what happened to the visible image."
+    );
+  }
+
+  if (
+    finalAssessment === "limited"
+  ) {
+    return (
+      "Media Shield did not identify strong manipulation indicators, but the image provides limited visual detail. " +
+      "The absence of strong findings should therefore not be interpreted as evidence that the image is authentic."
+    );
+  }
+
+  if (
+    finalAssessment === "no-strong"
+  ) {
+    return (
+      "The available checks did not identify strong indicators of AI generation or manipulation. " +
+      "This does not establish that the image is authentic, because subtle manipulation can remain undetectable and evidence may be absent from the file."
+    );
+  }
+
+  if (
+    finalAssessment === "provenance"
+  ) {
+    return (
+      "Media Shield detected Content Credentials associated with the image. " +
+      "These credentials can provide useful information about provenance and recorded actions, but their presence should be considered alongside the other evidence."
+    );
+  }
+
+  return (
+    "The available evidence does not support a reliable conclusion about whether the image is authentic, AI-generated, AI-edited, or otherwise manipulated."
+  );
+}
+
+
+function addWhatThisMeansEvidence(
+  finalAssessment,
+  profile
+) {
+  evidenceList.appendChild(
+    createEvidenceItem(
+      finalAssessment === "potential" ||
+        finalAssessment === "metadata"
+        ? "warning"
+        : "info",
+      "What this means",
+      buildWhatThisMeans(
+        finalAssessment,
+        profile
+      )
+    )
+  );
+}
+
+
+function updateFinalStatus(
+  finalAssessment
+) {
+  if (
+    finalAssessment === "potential"
   ) {
     statusTitle.textContent =
       "Potential manipulation indicators detected";
 
     statusDescription.textContent =
-      "Media Shield found one or more indicators that may be consistent with AI generation, AI editing, or digital manipulation. These indicators warrant additional verification but are not proof that the image is manipulated.";
-
+      "Media Shield found one or more signals that may be consistent with AI generation, AI editing, or digital manipulation. These signals are not proof.";
     return;
   }
 
   if (
-    visualResult === "some" ||
-    visualResult === "strong"
+    finalAssessment === "metadata"
   ) {
     statusTitle.textContent =
-      "Potential manipulation indicators detected";
+      "AI-related metadata indicator detected";
 
     statusDescription.textContent =
-      "Media Shield found one or more indicators that may be consistent with AI generation, AI editing, or digital manipulation. These indicators warrant additional verification but are not proof that the image is manipulated.";
-
+      "The file contains an explicit metadata reference associated with AI-generation software. This is a meaningful file-level signal, but it is not proof of the visible image's origin.";
     return;
   }
 
   if (
-    visualResult === "low"
+    finalAssessment === "limited"
+  ) {
+    statusTitle.textContent =
+      "Evidence is limited";
+
+    statusDescription.textContent =
+      "No strong manipulation indicators were identified, but the image does not provide enough visual detail for a confident negative assessment.";
+    return;
+  }
+
+  if (
+    finalAssessment === "no-strong"
   ) {
     statusTitle.textContent =
       "No strong manipulation indicators detected";
 
     statusDescription.textContent =
-      "The available checks did not identify strong indicators of AI generation or manipulation. This does not establish that the image is authentic or unedited.";
-
+      "The available checks did not identify strong indicators of AI generation or manipulation. This does not prove that the image is authentic or unedited.";
     return;
   }
 
   if (
-    provenance?.hasManifest
+    finalAssessment === "provenance"
   ) {
     statusTitle.textContent =
       "Content Credentials detected";
 
     statusDescription.textContent =
-      "Media Shield found C2PA provenance information in this file. Review the provenance information together with the other available evidence.";
-
+      "Media Shield found C2PA provenance information in this file. Review the recorded provenance together with the other available evidence.";
     return;
   }
 
@@ -1506,6 +1763,13 @@ function updateProFinalStatus(
 }
 
 
+/*
+  ============================================================
+  FREE RESULT
+  ============================================================
+*/
+
+
 function updateFreeFinalStatus(
   aiMetadataDetected,
   provenance
@@ -1514,7 +1778,7 @@ function updateFreeFinalStatus(
     aiMetadataDetected
   ) {
     statusTitle.textContent =
-      "Metadata indicator detected";
+      "AI-related metadata indicator detected";
 
     statusDescription.textContent =
       "Media Shield found an explicit metadata reference associated with AI-generation software. Metadata alone is not proof that the image is AI-generated or manipulated.";
@@ -1529,7 +1793,7 @@ function updateFreeFinalStatus(
       "Content Credentials detected";
 
     statusDescription.textContent =
-      "Media Shield found C2PA provenance information in this file. Free analysis does not include the Pro visual manipulation check.";
+      "Media Shield found C2PA provenance information in this file. Free analysis does not include Pro visual manipulation analysis.";
 
     return;
   }
@@ -1578,8 +1842,7 @@ async function analyzeImageRecord(
   }
 
   if (
-    typeof record.size ===
-    "number"
+    typeof record.size === "number"
   ) {
     details.push(
       formatFileSize(
@@ -1596,7 +1859,7 @@ async function analyzeImageRecord(
 
   statusDescription.textContent =
     isPro
-      ? "Media Shield Pro is examining file evidence, metadata, provenance, and visible image characteristics."
+      ? "Media Shield Pro is examining file evidence, metadata, provenance, image quality, and visible image characteristics."
       : "Media Shield is examining locally available file evidence, metadata, and provenance.";
 
   const image =
@@ -1613,6 +1876,13 @@ async function analyzeImageRecord(
 
       evidenceList.innerHTML =
         "";
+
+
+      /*
+        ======================================================
+        FILE CHARACTERISTICS
+        ======================================================
+      */
 
       evidenceList.appendChild(
         createEvidenceItem(
@@ -1700,6 +1970,16 @@ async function analyzeImageRecord(
             "Media Shield could not complete the local metadata inspection for this file. No conclusion should be drawn from this."
           )
         );
+
+        metadata = {
+          hasExif: false,
+          hasXmp: false,
+          hasIccProfile: false,
+          hasPhotoshopResource: false,
+          comments: [],
+          softwareIndicators: [],
+          aiIndicators: []
+        };
       }
 
 
@@ -1736,10 +2016,15 @@ async function analyzeImageRecord(
       }
 
 
+      /*
+        ======================================================
+        AI METADATA FLAG
+        ======================================================
+      */
+
       const aiMetadataDetected =
-        metadata &&
         Array.isArray(
-          metadata.aiIndicators
+          metadata?.aiIndicators
         ) &&
         metadata.aiIndicators.length >
           0;
@@ -1773,7 +2058,7 @@ async function analyzeImageRecord(
 
       /*
         ======================================================
-        PRO USER
+        PRO VISUAL ANALYSIS
         ======================================================
       */
 
@@ -1781,7 +2066,7 @@ async function analyzeImageRecord(
         "Running Pro visual analysis…";
 
       statusDescription.textContent =
-        "Media Shield Pro is examining the visible image for potential AI-generation, AI-editing, and manipulation indicators.";
+        "Media Shield Pro is examining the visible image for potential AI-generation, AI-editing, compositing, and manipulation indicators.";
 
       const visualAnalysis =
         await runVisualAnalysis(
@@ -1791,9 +2076,15 @@ async function analyzeImageRecord(
       let visualResult =
         "inconclusive";
 
+      let visualAnalysisAvailable =
+        false;
+
       if (
         visualAnalysis.ok
       ) {
+        visualAnalysisAvailable =
+          true;
+
         const parsedAnalysis =
           parseVisualAnalysis(
             visualAnalysis.analysis
@@ -1809,16 +2100,46 @@ async function analyzeImageRecord(
           createEvidenceItem(
             "neutral",
             "Pro visual manipulation analysis",
-            "The visual analysis service could not complete this check. No conclusion should be drawn from the missing result."
+            "The visual analysis service could not complete this check. The remaining evidence is still available and no conclusion should be drawn from the missing visual result."
           )
         );
       }
 
-      updateProFinalStatus(
-        aiMetadataDetected,
-        provenance,
-        visualResult,
-        reliability
+
+      /*
+        ======================================================
+        EVIDENCE RECONCILIATION
+        ======================================================
+      */
+
+      const evidenceProfile =
+        buildEvidenceProfile(
+          metadata,
+          provenance,
+          visualResult,
+          reliability,
+          visualAnalysisAvailable
+        );
+
+      const finalAssessment =
+        determineFinalAssessment(
+          evidenceProfile
+        );
+
+
+      /*
+        ======================================================
+        FINAL INTERPRETATION
+        ======================================================
+      */
+
+      addWhatThisMeansEvidence(
+        finalAssessment,
+        evidenceProfile
+      );
+
+      updateFinalStatus(
+        finalAssessment
       );
     };
 
@@ -1845,7 +2166,6 @@ async function analyzeImageRecord(
       statusDescription.textContent =
         "Media Shield could not safely read the selected image.";
     };
-
 
   image.src =
     record.dataUrl;
