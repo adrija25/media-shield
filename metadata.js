@@ -3,13 +3,10 @@ function readAscii(bytes, start, length) {
 
   for (
     let i = start;
-    i < start + length &&
-    i < bytes.length;
+    i < start + length && i < bytes.length;
     i++
   ) {
-    result += String.fromCharCode(
-      bytes[i]
-    );
+    result += String.fromCharCode(bytes[i]);
   }
 
   return result;
@@ -30,9 +27,7 @@ function cleanMetadataText(value) {
 
 function decodeBytesForSearch(bytes) {
   try {
-    return new TextDecoder(
-      "latin1"
-    ).decode(bytes);
+    return new TextDecoder("latin1").decode(bytes);
   } catch (error) {
     console.error(
       "Metadata text decoding failed:",
@@ -60,20 +55,36 @@ function findTextOccurrences(
 
   const findings = [];
 
-  searchTerms.forEach((term) => {
-    if (
-      lowerText.includes(
-        term.toLowerCase()
-      )
-    ) {
-      findings.push(term);
+  searchTerms.forEach(
+    (term) => {
+      if (
+        typeof term !== "string" ||
+        !term
+      ) {
+        return;
+      }
+
+      if (
+        lowerText.includes(
+          term.toLowerCase()
+        )
+      ) {
+        findings.push(term);
+      }
     }
-  });
+  );
 
   return [
     ...new Set(findings)
   ];
 }
+
+
+/*
+  ============================================================
+  JPEG MARKER INSPECTION
+  ============================================================
+*/
 
 
 function inspectJpegMarkers(bytes) {
@@ -86,6 +97,7 @@ function inspectJpegMarkers(bytes) {
   };
 
   if (
+    !bytes ||
     bytes.length < 4 ||
     bytes[0] !== 0xff ||
     bytes[1] !== 0xd8
@@ -98,6 +110,10 @@ function inspectJpegMarkers(bytes) {
   while (
     offset + 4 <= bytes.length
   ) {
+    /*
+      Find the next JPEG marker.
+    */
+
     if (
       bytes[offset] !== 0xff
     ) {
@@ -105,15 +121,42 @@ function inspectJpegMarkers(bytes) {
       continue;
     }
 
-    const marker =
-      bytes[offset + 1];
+    /*
+      JPEG files can contain repeated FF
+      padding bytes before a marker.
+    */
+
+    while (
+      offset < bytes.length &&
+      bytes[offset] === 0xff
+    ) {
+      offset++;
+    }
 
     if (
-      marker === 0xd9 ||
-      marker === 0xda
+      offset >= bytes.length
     ) {
       break;
     }
+
+    const marker =
+      bytes[offset];
+
+    /*
+      Start of Scan and End of Image.
+    */
+
+    if (
+      marker === 0xda ||
+      marker === 0xd9
+    ) {
+      break;
+    }
+
+    /*
+      Standalone markers do not have a
+      segment length.
+    */
 
     if (
       marker === 0x01 ||
@@ -122,21 +165,26 @@ function inspectJpegMarkers(bytes) {
         marker <= 0xd7
       )
     ) {
-      offset += 2;
+      offset++;
       continue;
     }
 
+    /*
+      A normal JPEG segment requires
+      two bytes for its length.
+    */
+
     if (
-      offset + 3 >= bytes.length
+      offset + 2 >= bytes.length
     ) {
       break;
     }
 
     const segmentLength =
       (
-        bytes[offset + 2] << 8
+        bytes[offset + 1] << 8
       ) |
-      bytes[offset + 3];
+      bytes[offset + 2];
 
     if (
       segmentLength < 2
@@ -145,7 +193,7 @@ function inspectJpegMarkers(bytes) {
     }
 
     const dataStart =
-      offset + 4;
+      offset + 3;
 
     const dataLength =
       segmentLength - 2;
@@ -159,20 +207,21 @@ function inspectJpegMarkers(bytes) {
 
 
     /*
+      ========================================================
       APP1
-
-      Common location for EXIF
-      and XMP metadata.
+      ========================================================
     */
 
-    if (marker === 0xe1) {
+    if (
+      marker === 0xe1
+    ) {
       const header =
         readAscii(
           bytes,
           dataStart,
           Math.min(
             dataLength,
-            80
+            100
           )
         );
 
@@ -181,7 +230,8 @@ function inspectJpegMarkers(bytes) {
           "Exif"
         )
       ) {
-        result.hasExif = true;
+        result.hasExif =
+          true;
       }
 
       if (
@@ -192,29 +242,34 @@ function inspectJpegMarkers(bytes) {
           "http://ns.adobe.com/xmp/"
         ) ||
         header.includes(
+          "http://ns.adobe.com/xap/1.0"
+        ) ||
+        header.includes(
           "XMP"
         )
       ) {
-        result.hasXmp = true;
+        result.hasXmp =
+          true;
       }
     }
 
 
     /*
+      ========================================================
       APP2
-
-      Common location for ICC
-      colour profiles.
+      ========================================================
     */
 
-    if (marker === 0xe2) {
+    if (
+      marker === 0xe2
+    ) {
       const header =
         readAscii(
           bytes,
           dataStart,
           Math.min(
             dataLength,
-            40
+            50
           )
         );
 
@@ -230,20 +285,21 @@ function inspectJpegMarkers(bytes) {
 
 
     /*
+      ========================================================
       APP13
-
-      Photoshop resource
-      information may appear here.
+      ========================================================
     */
 
-    if (marker === 0xed) {
+    if (
+      marker === 0xed
+    ) {
       const header =
         readAscii(
           bytes,
           dataStart,
           Math.min(
             dataLength,
-            60
+            80
           )
         );
 
@@ -259,10 +315,14 @@ function inspectJpegMarkers(bytes) {
 
 
     /*
-      JPEG comment marker.
+      ========================================================
+      JPEG COMMENT
+      ========================================================
     */
 
-    if (marker === 0xfe) {
+    if (
+      marker === 0xfe
+    ) {
       const comment =
         cleanMetadataText(
           readAscii(
@@ -272,7 +332,9 @@ function inspectJpegMarkers(bytes) {
           )
         );
 
-      if (comment) {
+      if (
+        comment
+      ) {
         result.comments.push(
           comment.slice(
             0,
@@ -282,17 +344,32 @@ function inspectJpegMarkers(bytes) {
       }
     }
 
+
+    /*
+      Move to the next JPEG segment.
+
+      offset currently points at the
+      marker byte, while segmentLength
+      includes the two length bytes.
+    */
+
     offset +=
-      2 + segmentLength;
+      1 + segmentLength;
   }
 
   return result;
 }
 
 
-async function inspectImageMetadata(
-  dataUrl,
-  mimeType
+/*
+  ============================================================
+  DATA URL → BYTES
+  ============================================================
+*/
+
+
+function dataUrlToBytes(
+  dataUrl
 ) {
   if (
     typeof dataUrl !== "string"
@@ -324,12 +401,17 @@ async function inspectImageMetadata(
       commaIndex + 1
     );
 
-  let bytes;
+  if (
+    !encodedData
+  ) {
+    throw new Error(
+      "Image data is empty."
+    );
+  }
 
 
   /*
-    Convert the data URL back
-    into raw file bytes.
+    Base64 data URL.
   */
 
   if (
@@ -337,18 +419,27 @@ async function inspectImageMetadata(
       ";base64"
     )
   ) {
-    const binaryString =
-      atob(encodedData);
+    let binaryString;
 
-    bytes =
+    try {
+      binaryString =
+        atob(
+          encodedData
+        );
+    } catch (error) {
+      throw new Error(
+        "Image data could not be decoded."
+      );
+    }
+
+    const bytes =
       new Uint8Array(
         binaryString.length
       );
 
     for (
       let i = 0;
-      i <
-      binaryString.length;
+      i < binaryString.length;
       i++
     ) {
       bytes[i] =
@@ -356,17 +447,94 @@ async function inspectImageMetadata(
           i
         );
     }
-  } else {
+
+    return bytes;
+  }
+
+
+  /*
+    Non-base64 data URL.
+
+    This is uncommon for image files but
+    remains supported for compatibility.
+  */
+
+  try {
     const decodedText =
       decodeURIComponent(
         encodedData
       );
 
-    bytes =
-      new TextEncoder().encode(
-        decodedText
-      );
+    return new TextEncoder().encode(
+      decodedText
+    );
+
+  } catch (error) {
+    throw new Error(
+      "Image data could not be decoded."
+    );
   }
+}
+
+
+/*
+  ============================================================
+  SOFTWARE / AI INDICATORS
+  ============================================================
+*/
+
+
+const GENERAL_SOFTWARE_INDICATORS = [
+  "Adobe Photoshop",
+  "Adobe Lightroom",
+  "GIMP",
+  "Canva",
+  "Affinity Photo",
+  "Pixelmator"
+];
+
+
+/*
+  These are deliberately restricted to relatively distinctive
+  generative-image tools/workflows.
+
+  Detection means only that the text exists somewhere in the
+  file bytes. It does NOT establish that the visible image was
+  generated or manipulated by that software.
+*/
+
+const AI_SOFTWARE_INDICATORS = [
+  "Stable Diffusion",
+  "Midjourney",
+  "DALL-E",
+  "DALL·E",
+  "ComfyUI",
+  "AUTOMATIC1111",
+  "InvokeAI",
+  "Fooocus"
+];
+
+
+/*
+  ============================================================
+  METADATA INSPECTION
+  ============================================================
+*/
+
+
+async function inspectImageMetadata(
+  dataUrl,
+  mimeType
+) {
+  const bytes =
+    dataUrlToBytes(
+      dataUrl
+    );
+
+  const normalisedMimeType =
+    typeof mimeType === "string"
+      ? mimeType.toLowerCase().trim()
+      : "";
 
 
   const result = {
@@ -374,29 +542,39 @@ async function inspectImageMetadata(
       mimeType ||
       "Unknown",
 
-    hasExif: false,
-    hasXmp: false,
-    hasIccProfile: false,
+    hasExif:
+      false,
+
+    hasXmp:
+      false,
+
+    hasIccProfile:
+      false,
+
     hasPhotoshopResource:
       false,
 
-    comments: [],
+    comments:
+      [],
 
-    softwareIndicators: [],
+    softwareIndicators:
+      [],
 
-    aiIndicators: []
+    aiIndicators:
+      []
   };
 
 
   /*
-    Structured JPEG marker
-    inspection.
+    ==========================================================
+    JPEG STRUCTURED METADATA
+    ==========================================================
   */
 
   if (
-    mimeType ===
+    normalisedMimeType ===
       "image/jpeg" ||
-    mimeType ===
+    normalisedMimeType ===
       "image/jpg"
   ) {
     const jpegResult =
@@ -422,61 +600,38 @@ async function inspectImageMetadata(
 
 
   /*
-    General editing-software
-    references.
+    ==========================================================
+    GENERAL SOFTWARE REFERENCES
+    ==========================================================
 
-    These indicate that software
-    names are present somewhere
-    in the file.
+    These are informational only.
 
-    They MUST NOT be interpreted
-    as evidence that the image
-    was AI-generated.
+    Photoshop, Lightroom, GIMP, Canva, etc. do not imply
+    AI generation.
+    ==========================================================
   */
 
   result.softwareIndicators =
     findTextOccurrences(
       bytes,
-      [
-        "Adobe Photoshop",
-        "Adobe Lightroom",
-        "GIMP",
-        "Canva",
-        "Affinity Photo",
-        "Pixelmator"
-      ]
+      GENERAL_SOFTWARE_INDICATORS
     );
 
 
   /*
-    AI-associated workflow
-    references.
+    ==========================================================
+    AI-ASSOCIATED REFERENCES
+    ==========================================================
 
-    These are deliberately
-    limited to relatively
-    distinctive names associated
-    with generative-image tools
-    or workflows.
-
-    Even when detected, they are
-    indicators only — not proof
-    that the displayed image was
-    generated or manipulated by AI.
+    These are meaningful file-level indicators but NOT proof
+    of the image's origin.
+    ==========================================================
   */
 
   result.aiIndicators =
     findTextOccurrences(
       bytes,
-      [
-        "Stable Diffusion",
-        "Midjourney",
-        "DALL-E",
-        "DALL·E",
-        "ComfyUI",
-        "AUTOMATIC1111",
-        "InvokeAI",
-        "Fooocus"
-      ]
+      AI_SOFTWARE_INDICATORS
     );
 
 
