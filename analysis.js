@@ -127,6 +127,154 @@ function showNoImageMessage() {
 
 /*
   ============================================================
+  INPUT QUALITY / RELIABILITY
+  ============================================================
+*/
+
+
+function assessImageReliability(image) {
+  const width = Number(image?.naturalWidth || 0);
+  const height = Number(image?.naturalHeight || 0);
+
+  const result = {
+    level: "good",
+    width,
+    height,
+    reasons: []
+  };
+
+  if (!width || !height) {
+    result.level = "limited";
+    result.reasons.push(
+      "The image dimensions could not be determined."
+    );
+
+    return result;
+  }
+
+
+  /*
+    Very small images provide limited visual detail.
+  */
+
+  if (width < 400 || height < 400) {
+    result.level = "limited";
+
+    result.reasons.push(
+      "The image has relatively low pixel dimensions."
+    );
+  }
+
+
+  /*
+    Extremely small total pixel area is particularly
+    difficult for visual inspection.
+  */
+
+  const pixelCount =
+    width * height;
+
+  if (pixelCount < 250000) {
+    result.level = "limited";
+
+    if (
+      !result.reasons.includes(
+        "The image has relatively low pixel dimensions."
+      )
+    ) {
+      result.reasons.push(
+        "The total available pixel area is limited."
+      );
+    }
+  }
+
+
+  /*
+    Extremely unusual aspect ratios can make interpretation
+    more difficult, but are not themselves suspicious.
+  */
+
+  const aspectRatio =
+    Math.max(width, height) /
+    Math.min(width, height);
+
+  if (aspectRatio > 5) {
+    result.reasons.push(
+      "The image has an unusually wide or tall aspect ratio."
+    );
+
+    if (result.level === "good") {
+      result.level = "caution";
+    }
+  }
+
+
+  /*
+    Very high resolution is not a problem. We intentionally
+    do not penalise large images.
+    */
+
+  return result;
+}
+
+
+function buildReliabilityDescription(
+  reliability
+) {
+  if (
+    reliability.level === "limited"
+  ) {
+    return (
+      "The image has limited visual detail for forensic inspection. " +
+      "Visual-analysis results should be treated with additional caution and should not be interpreted as proof of authenticity or manipulation."
+    );
+  }
+
+  if (
+    reliability.level === "caution"
+  ) {
+    return (
+      "The image has an unusual visual format that may make some visual characteristics harder to interpret. " +
+      "This is not itself evidence of manipulation."
+    );
+  }
+
+  return (
+    "The image provides sufficient basic visual detail for the available visual analysis. " +
+    "This does not guarantee that subtle manipulation or AI generation can be detected."
+  );
+}
+
+
+function addReliabilityEvidence(
+  reliability
+) {
+  let type = "info";
+
+  if (
+    reliability.level === "limited"
+  ) {
+    type = "warning";
+  } else if (
+    reliability.level === "caution"
+  ) {
+    type = "neutral";
+  }
+
+  evidenceList.appendChild(
+    createEvidenceItem(
+      type,
+      "Visual-analysis conditions",
+      buildReliabilityDescription(
+        reliability
+      )
+    )
+  );
+}
+
+
+/*
+  ============================================================
   METADATA
   ============================================================
 */
@@ -215,15 +363,6 @@ function buildProvenanceDescription(provenance) {
 /*
   ============================================================
   SAFE PROVENANCE HELPERS
-  ============================================================
-
-  These helpers deliberately avoid assuming one exact
-  manifest-store shape.
-
-  Only values that actually exist and can safely be displayed
-  are returned.
-
-  No provenance information is invented.
   ============================================================
 */
 
@@ -429,13 +568,6 @@ function extractProvenanceDetails(
 
   details.available = true;
 
-
-  /*
-    ==========================================================
-    CLAIM GENERATOR
-    ==========================================================
-  */
-
   details.claimGenerator =
     getFirstString(
       manifest,
@@ -446,25 +578,15 @@ function extractProvenanceDetails(
     );
 
   if (!details.claimGenerator) {
-    const claim =
-      manifest.claim;
-
     details.claimGenerator =
       getFirstString(
-        claim,
+        manifest.claim,
         [
           "claim_generator",
           "claimGenerator"
         ]
       );
   }
-
-
-  /*
-    ==========================================================
-    TITLE / NAME
-    ==========================================================
-  */
 
   details.title =
     getFirstString(
@@ -474,13 +596,6 @@ function extractProvenanceDetails(
         "name"
       ]
     );
-
-
-  /*
-    ==========================================================
-    FORMAT
-    ==========================================================
-  */
 
   details.format =
     getFirstString(
@@ -492,13 +607,6 @@ function extractProvenanceDetails(
       ]
     );
 
-
-  /*
-    ==========================================================
-    INSTANCE ID
-    ==========================================================
-  */
-
   details.instanceId =
     getFirstString(
       manifest,
@@ -507,13 +615,6 @@ function extractProvenanceDetails(
         "instanceId"
       ]
     );
-
-
-  /*
-    ==========================================================
-    ACTIONS
-    ==========================================================
-  */
 
   const assertions =
     Array.isArray(
@@ -634,13 +735,6 @@ function extractProvenanceDetails(
     }
   );
 
-
-  /*
-    ==========================================================
-    INGREDIENTS
-    ==========================================================
-  */
-
   const ingredientCandidates = [];
 
   if (
@@ -721,13 +815,6 @@ function extractProvenanceDetails(
     }
   );
 
-
-  /*
-    ==========================================================
-    VALIDATION
-    ==========================================================
-  */
-
   const validationCandidates = [
     manifest.validation_status,
     manifest.validationStatus,
@@ -775,13 +862,6 @@ function addProvenanceEvidence(
     return;
   }
 
-
-  /*
-    ==========================================================
-    PROVENANCE SUMMARY
-    ==========================================================
-  */
-
   const summaryParts = [];
 
   if (
@@ -828,13 +908,6 @@ function addProvenanceEvidence(
     );
   }
 
-
-  /*
-    ==========================================================
-    ACTIONS
-    ==========================================================
-  */
-
   if (
     details.actions.length > 0
   ) {
@@ -842,22 +915,10 @@ function addProvenanceEvidence(
       createEvidenceItem(
         "info",
         "Recorded actions",
-        details.actions
-          .map(
-            (action) =>
-              action
-          )
-          .join(" · ")
+        details.actions.join(" · ")
       )
     );
   }
-
-
-  /*
-    ==========================================================
-    INGREDIENTS
-    ==========================================================
-  */
 
   if (
     details.ingredients.length > 0
@@ -866,18 +927,10 @@ function addProvenanceEvidence(
       createEvidenceItem(
         "info",
         "Referenced ingredients",
-        details.ingredients
-          .join(" · ")
+        details.ingredients.join(" · ")
       )
     );
   }
-
-
-  /*
-    ==========================================================
-    INSTANCE ID
-    ==========================================================
-  */
 
   if (
     details.instanceId
@@ -900,7 +953,9 @@ function addProvenanceEvidence(
 */
 
 
-async function runProvenanceCheck(dataUrl) {
+async function runProvenanceCheck(
+  dataUrl
+) {
   const provenanceApi =
     window.MediaShieldProvenance;
 
@@ -942,7 +997,9 @@ async function runProvenanceCheck(dataUrl) {
 */
 
 
-async function runVisualAnalysis(dataUrl) {
+async function runVisualAnalysis(
+  dataUrl
+) {
   try {
     const stored =
       await new Promise(
@@ -1185,7 +1242,7 @@ function parseVisualAnalysis(
 
 /*
   ============================================================
-  STRICT ASSESSMENT NORMALISATION
+  ASSESSMENT NORMALISATION
   ============================================================
 */
 
@@ -1256,11 +1313,6 @@ function addVisualAnalysisEvidence(
       "info";
   }
 
-
-  /*
-    OVERALL PRO ANALYSIS
-  */
-
   evidenceList.appendChild(
     createEvidenceItem(
       indicatorType,
@@ -1269,11 +1321,6 @@ function addVisualAnalysisEvidence(
         "The visual analysis did not provide a summary."
     )
   );
-
-
-  /*
-    GROUPED VISUAL INDICATORS
-  */
 
   if (
     parsedAnalysis.indicators.length >
@@ -1359,11 +1406,6 @@ function addVisualAnalysisEvidence(
     );
   }
 
-
-  /*
-    LIMITATION
-  */
-
   evidenceList.appendChild(
     createEvidenceItem(
       "neutral",
@@ -1386,8 +1428,27 @@ function addVisualAnalysisEvidence(
 function updateProFinalStatus(
   aiMetadataDetected,
   provenance,
-  visualResult
+  visualResult,
+  reliability
 ) {
+  /*
+    A limited-quality image should not be presented as a
+    confidently negative visual result.
+  */
+
+  if (
+    visualResult === "low" &&
+    reliability.level === "limited"
+  ) {
+    statusTitle.textContent =
+      "No strong indicators detected, but image quality is limited";
+
+    statusDescription.textContent =
+      "The available checks did not identify strong manipulation indicators, but the image provides limited visual detail. Treat this result cautiously and do not interpret it as evidence that the image is authentic.";
+
+    return;
+  }
+
   if (
     aiMetadataDetected
   ) {
@@ -1565,6 +1626,29 @@ async function analyzeImageRecord(
         )
       );
 
+
+      /*
+        ======================================================
+        VISUAL RELIABILITY
+        ======================================================
+      */
+
+      const reliability =
+        assessImageReliability(
+          image
+        );
+
+      addReliabilityEvidence(
+        reliability
+      );
+
+
+      /*
+        ======================================================
+        METADATA
+        ======================================================
+      */
+
       let metadata =
         null;
 
@@ -1618,6 +1702,13 @@ async function analyzeImageRecord(
         );
       }
 
+
+      /*
+        ======================================================
+        PROVENANCE
+        ======================================================
+      */
+
       const provenance =
         await runProvenanceCheck(
           record.dataUrl
@@ -1634,13 +1725,6 @@ async function analyzeImageRecord(
           )
         )
       );
-
-
-      /*
-        ======================================================
-        V3 — RICHER C2PA DETAILS
-        ======================================================
-      */
 
       if (
         provenance.hasManifest &&
@@ -1733,7 +1817,8 @@ async function analyzeImageRecord(
       updateProFinalStatus(
         aiMetadataDetected,
         provenance,
-        visualResult
+        visualResult,
+        reliability
       );
     };
 
