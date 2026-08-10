@@ -247,31 +247,11 @@ async function runProvenanceCheck(dataUrl) {
   ============================================================
   PRO VISUAL ANALYSIS
   ============================================================
-
-  VERSION 2:
-
-  The Pro visual-analysis Worker now independently verifies
-  the existing Media Shield Pro activation before Workers AI
-  is allowed to run.
-
-  No new activation is created here.
-
-  The extension sends the same token and installation ID that
-  were already authorised by the existing Media Shield
-  activation system.
-  ============================================================
 */
 
 
 async function runVisualAnalysis(dataUrl) {
   try {
-    /*
-      Read the existing Media Shield Pro credentials.
-
-      These values were created/stored by popup.js during
-      the existing activation flow.
-    */
-
     const stored =
       await new Promise(
         (resolve, reject) => {
@@ -281,9 +261,7 @@ async function runVisualAnalysis(dataUrl) {
               "mediaShieldInstallationId"
             ],
             (result) => {
-              if (
-                chrome.runtime.lastError
-              ) {
+              if (chrome.runtime.lastError) {
                 reject(
                   chrome.runtime.lastError
                 );
@@ -307,14 +285,6 @@ async function runVisualAnalysis(dataUrl) {
         ? stored.mediaShieldInstallationId.trim()
         : "";
 
-
-    /*
-      A locally stored Pro flag is no longer sufficient to
-      access the paid Workers AI analysis.
-
-      Both credentials must exist before the request is made.
-    */
-
     if (
       !token ||
       !installationId
@@ -323,15 +293,6 @@ async function runVisualAnalysis(dataUrl) {
         "Media Shield Pro authorisation information is unavailable. Please activate Media Shield Pro again."
       );
     }
-
-
-    /*
-      The server independently verifies:
-
-      1. token belongs to Media Shield Pro
-      2. installationId is authorised for that token
-      3. only then can Workers AI run
-    */
 
     const response =
       await fetch(
@@ -412,6 +373,13 @@ async function runVisualAnalysis(dataUrl) {
     };
   }
 }
+
+
+/*
+  ============================================================
+  PARSE VISUAL ANALYSIS
+  ============================================================
+*/
 
 
 function parseVisualAnalysis(rawAnalysis) {
@@ -500,15 +468,6 @@ function parseVisualAnalysis(rawAnalysis) {
   ============================================================
   STRICT ASSESSMENT NORMALISATION
   ============================================================
-
-  VERSION 2:
-
-  Only the four assessment values requested from the Worker
-  are accepted.
-
-  Unexpected or malformed model output safely falls back to
-  "inconclusive".
-  ============================================================
 */
 
 
@@ -533,6 +492,23 @@ function normaliseAssessment(assessment) {
 }
 
 
+/*
+  ============================================================
+  V3 PRO VISUAL EVIDENCE
+  ============================================================
+
+  V3 presentation change:
+
+  Instead of creating a separate card titled
+  "Pro visual indicator" for every model observation,
+  all observations are grouped into one Visual Indicators
+  section.
+
+  The underlying model output and assessment are unchanged.
+  ============================================================
+*/
+
+
 function addVisualAnalysisEvidence(parsedAnalysis) {
   const assessmentType =
     normaliseAssessment(
@@ -555,6 +531,11 @@ function addVisualAnalysisEvidence(parsedAnalysis) {
       "info";
   }
 
+
+  /*
+    OVERALL PRO ANALYSIS
+  */
+
   evidenceList.appendChild(
     createEvidenceItem(
       indicatorType,
@@ -564,22 +545,99 @@ function addVisualAnalysisEvidence(parsedAnalysis) {
     )
   );
 
+
+  /*
+    GROUPED VISUAL INDICATORS
+  */
+
   if (
-    parsedAnalysis.indicators.length >
-    0
+    parsedAnalysis.indicators.length > 0
   ) {
+    const article =
+      document.createElement("article");
+
+    article.className =
+      "evidence-item";
+
+    const indicator =
+      document.createElement("div");
+
+    indicator.className =
+      `indicator ${indicatorType}`;
+
+    const content =
+      document.createElement("div");
+
+    const heading =
+      document.createElement("h4");
+
+    heading.textContent =
+      "Visual indicators";
+
+    const list =
+      document.createElement("ul");
+
+    list.style.margin =
+      "8px 0 0";
+
+    list.style.paddingLeft =
+      "18px";
+
+    list.style.color =
+      "inherit";
+
     parsedAnalysis.indicators.forEach(
       (indicatorText) => {
-        evidenceList.appendChild(
-          createEvidenceItem(
-            indicatorType,
-            "Pro visual indicator",
-            indicatorText
-          )
-        );
+        const item =
+          document.createElement("li");
+
+        item.textContent =
+          indicatorText;
+
+        item.style.marginBottom =
+          "6px";
+
+        item.style.lineHeight =
+          "1.45";
+
+        list.appendChild(item);
       }
     );
+
+    content.appendChild(
+      heading
+    );
+
+    content.appendChild(
+      list
+    );
+
+    article.appendChild(
+      indicator
+    );
+
+    article.appendChild(
+      content
+    );
+
+    evidenceList.appendChild(
+      article
+    );
+
+  } else {
+    evidenceList.appendChild(
+      createEvidenceItem(
+        "neutral",
+        "Visual indicators",
+        "No specific visual indicators were returned by the analysis."
+      )
+    );
   }
+
+
+  /*
+    LIMITATION
+  */
 
   evidenceList.appendChild(
     createEvidenceItem(
@@ -857,11 +915,6 @@ async function analyzeImageRecord(record) {
         ======================================================
         FREE USER
         ======================================================
-
-        Free behaviour is unchanged.
-
-        Workers AI is NOT called for Free users.
-        ======================================================
       */
 
 
@@ -886,13 +939,6 @@ async function analyzeImageRecord(record) {
       /*
         ======================================================
         PRO USER
-        ======================================================
-
-        Version 2 still reaches Workers AI only for a locally
-        activated Pro user.
-
-        The Worker then performs a SECOND server-side check
-        of the token + installation ID before AI can run.
         ======================================================
       */
 
