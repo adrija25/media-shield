@@ -2,20 +2,42 @@
   box-sizing: border-box;
 }
 
+html,
 body {
+  width: 100%;
+  min-width: 0;
   margin: 0;
-  width: 380px;
+  padding: 0;
+}
+
+body {
   min-height: 560px;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Arial,
+    sans-serif;
   background:
-    radial-gradient(circle at top right, rgba(82, 122, 255, 0.16), transparent 34%),
+    radial-gradient(
+      circle at top right,
+      rgba(82, 122, 255, 0.16),
+      transparent 34%
+    ),
     #08101f;
   color: #f5f7fb;
 }
 
 .app {
+  width: 100%;
+  min-height: 560px;
   padding: 22px;
 }
+
+/* ============================================================
+   BRAND
+   ============================================================ */
 
 .brand {
   display: flex;
@@ -30,6 +52,7 @@ body {
   justify-content: center;
   width: 42px;
   height: 42px;
+  flex-shrink: 0;
   border: 1px solid rgba(125, 156, 255, 0.55);
   border-radius: 13px;
   background: linear-gradient(145deg, #182c63, #0c1835);
@@ -52,6 +75,10 @@ body {
   font-size: 11px;
 }
 
+/* ============================================================
+   INTRO
+   ============================================================ */
+
 .intro {
   margin-bottom: 20px;
 }
@@ -66,8 +93,8 @@ body {
 }
 
 .intro h2 {
+  max-width: 100%;
   margin: 0 0 12px;
-  max-width: 320px;
   font-size: 23px;
   line-height: 1.2;
   letter-spacing: -0.6px;
@@ -80,7 +107,12 @@ body {
   line-height: 1.6;
 }
 
+/* ============================================================
+   IMAGE CHECK CARD
+   ============================================================ */
+
 .check-card {
+  width: 100%;
   margin-top: 20px;
   padding: 22px;
   border: 1px solid #202c45;
@@ -109,8 +141,8 @@ body {
 }
 
 .check-card > p {
+  max-width: 100%;
   margin: 0 auto 17px;
-  max-width: 280px;
   color: #9da9be;
   font-size: 12px;
   line-height: 1.5;
@@ -148,9 +180,12 @@ body {
   letter-spacing: 0.8px;
 }
 
-/* Media Shield Pro */
+/* ============================================================
+   MEDIA SHIELD PRO
+   ============================================================ */
 
 .pro-card {
+  width: 100%;
   margin-top: 16px;
   padding: 18px;
   border: 1px solid rgba(111, 140, 255, 0.32);
@@ -200,6 +235,10 @@ body {
   line-height: 1.55;
 }
 
+/* ============================================================
+   PRO BUTTONS
+   ============================================================ */
+
 #upgradeProButton,
 #submitActivationButton {
   width: 100%;
@@ -217,6 +256,12 @@ body {
 #upgradeProButton:hover,
 #submitActivationButton:hover {
   opacity: 0.92;
+}
+
+#upgradeProButton:disabled,
+#submitActivationButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 #activateProButton,
@@ -238,6 +283,10 @@ body {
 #cancelActivationButton:hover {
   background: rgba(111, 140, 255, 0.08);
 }
+
+/* ============================================================
+   ACTIVATION
+   ============================================================ */
 
 #proActivationState label {
   display: block;
@@ -266,7 +315,8 @@ body {
 
 #activationKey:focus {
   border-color: #6f8cff;
-  box-shadow: 0 0 0 2px rgba(111, 140, 255, 0.12);
+  box-shadow:
+    0 0 0 2px rgba(111, 140, 255, 0.12);
 }
 
 #activationMessage {
@@ -275,6 +325,10 @@ body {
   font-size: 10px;
   line-height: 1.45;
 }
+
+/* ============================================================
+   ACTIVE PRO STATE
+   ============================================================ */
 
 .active-badge {
   display: inline-block;
@@ -295,13 +349,20 @@ body {
   line-height: 1.5;
 }
 
+/* ============================================================
+   HIDDEN STATES
+   ============================================================ */
+
 [hidden] {
   display: none !important;
 }
 
-/* Privacy */
+/* ============================================================
+   PRIVACY
+   ============================================================ */
 
 .privacy-note {
+  width: 100%;
   margin-top: 16px;
   padding: 14px 15px;
   border: 1px solid #1c2941;
@@ -321,7 +382,12 @@ body {
   line-height: 1.5;
 }
 
+/* ============================================================
+   FOOTER
+   ============================================================ */
+
 footer {
+  width: 100%;
   margin-top: 18px;
   padding-top: 14px;
   border-top: 1px solid #19243a;
@@ -333,4 +399,26 @@ footer p {
   font-size: 9px;
   line-height: 1.5;
   text-align: center;
+}
+
+/* ============================================================
+   RESPONSIVE SAFETY
+   ============================================================ */
+
+@media (max-width: 360px) {
+  .app {
+    padding: 18px;
+  }
+
+  .check-card {
+    padding: 18px;
+  }
+
+  .pro-card {
+    padding: 16px;
+  }
+
+  .intro h2 {
+    font-size: 21px;
+  }
 }
