@@ -201,7 +201,7 @@ function buildProvenanceDescription(provenance) {
   if (provenance.hasManifest) {
     return (
       "Content Credentials or C2PA provenance information was detected. " +
-      "Cryptographically verifiable provenance can provide useful information about the origin and editing history of supported media."
+      "Available provenance details are shown below when they can be read from the credential."
     );
   }
 
@@ -212,8 +212,697 @@ function buildProvenanceDescription(provenance) {
 }
 
 
+/*
+  ============================================================
+  SAFE PROVENANCE HELPERS
+  ============================================================
+
+  These helpers deliberately avoid assuming one exact
+  manifest-store shape.
+
+  Only values that actually exist and can safely be displayed
+  are returned.
+
+  No provenance information is invented.
+  ============================================================
+*/
+
+
+function safeString(value) {
+  if (
+    typeof value !== "string"
+  ) {
+    return "";
+  }
+
+  return value
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+
+function getFirstString(object, keys) {
+  if (
+    !object ||
+    typeof object !== "object"
+  ) {
+    return "";
+  }
+
+  for (const key of keys) {
+    const value =
+      safeString(
+        object[key]
+      );
+
+    if (value) {
+      return value;
+    }
+  }
+
+  return "";
+}
+
+
+function getManifestStoreObject(provenance) {
+  if (
+    !provenance ||
+    !provenance.manifestStore ||
+    typeof provenance.manifestStore !== "object"
+  ) {
+    return null;
+  }
+
+  return provenance.manifestStore;
+}
+
+
+function getActiveManifest(manifestStore) {
+  if (!manifestStore) {
+    return null;
+  }
+
+  if (
+    manifestStore.active_manifest &&
+    typeof manifestStore.active_manifest === "object"
+  ) {
+    return manifestStore.active_manifest;
+  }
+
+  if (
+    manifestStore.activeManifest &&
+    typeof manifestStore.activeManifest === "object"
+  ) {
+    return manifestStore.activeManifest;
+  }
+
+  if (
+    manifestStore.active &&
+    typeof manifestStore.active === "object"
+  ) {
+    return manifestStore.active;
+  }
+
+  return null;
+}
+
+
+function getManifestMap(manifestStore) {
+  if (!manifestStore) {
+    return null;
+  }
+
+  if (
+    manifestStore.manifests &&
+    typeof manifestStore.manifests === "object"
+  ) {
+    return manifestStore.manifests;
+  }
+
+  return null;
+}
+
+
+function getManifestFromMap(
+  manifestStore,
+  activeManifest
+) {
+  const manifests =
+    getManifestMap(
+      manifestStore
+    );
+
+  if (
+    !manifests ||
+    typeof manifests !== "object"
+  ) {
+    return null;
+  }
+
+  const activeLabel =
+    getFirstString(
+      manifestStore,
+      [
+        "active_manifest",
+        "activeManifest"
+      ]
+    );
+
+  if (
+    activeLabel &&
+    manifests[activeLabel] &&
+    typeof manifests[activeLabel] === "object"
+  ) {
+    return manifests[activeLabel];
+  }
+
+  if (
+    activeManifest &&
+    typeof activeManifest === "object"
+  ) {
+    return activeManifest;
+  }
+
+  const manifestKeys =
+    Object.keys(
+      manifests
+    );
+
+  if (
+    manifestKeys.length === 1
+  ) {
+    const onlyManifest =
+      manifests[
+        manifestKeys[0]
+      ];
+
+    if (
+      onlyManifest &&
+      typeof onlyManifest === "object"
+    ) {
+      return onlyManifest;
+    }
+  }
+
+  return null;
+}
+
+
+function extractProvenanceDetails(
+  provenance
+) {
+  const details = {
+    available: false,
+    claimGenerator: "",
+    title: "",
+    format: "",
+    instanceId: "",
+    actions: [],
+    ingredients: [],
+    validation: ""
+  };
+
+  const manifestStore =
+    getManifestStoreObject(
+      provenance
+    );
+
+  if (!manifestStore) {
+    return details;
+  }
+
+  const activeManifest =
+    getActiveManifest(
+      manifestStore
+    );
+
+  const manifest =
+    getManifestFromMap(
+      manifestStore,
+      activeManifest
+    ) ||
+    activeManifest;
+
+  if (!manifest) {
+    return details;
+  }
+
+  details.available = true;
+
+
+  /*
+    ==========================================================
+    CLAIM GENERATOR
+    ==========================================================
+  */
+
+  details.claimGenerator =
+    getFirstString(
+      manifest,
+      [
+        "claim_generator",
+        "claimGenerator"
+      ]
+    );
+
+  if (!details.claimGenerator) {
+    const claim =
+      manifest.claim;
+
+    details.claimGenerator =
+      getFirstString(
+        claim,
+        [
+          "claim_generator",
+          "claimGenerator"
+        ]
+      );
+  }
+
+
+  /*
+    ==========================================================
+    TITLE / NAME
+    ==========================================================
+  */
+
+  details.title =
+    getFirstString(
+      manifest,
+      [
+        "title",
+        "name"
+      ]
+    );
+
+
+  /*
+    ==========================================================
+    FORMAT
+    ==========================================================
+  */
+
+  details.format =
+    getFirstString(
+      manifest,
+      [
+        "format",
+        "media_type",
+        "mediaType"
+      ]
+    );
+
+
+  /*
+    ==========================================================
+    INSTANCE ID
+    ==========================================================
+  */
+
+  details.instanceId =
+    getFirstString(
+      manifest,
+      [
+        "instance_id",
+        "instanceId"
+      ]
+    );
+
+
+  /*
+    ==========================================================
+    ACTIONS
+    ==========================================================
+  */
+
+  const assertions =
+    Array.isArray(
+      manifest.assertions
+    )
+      ? manifest.assertions
+      : [];
+
+  const actionCandidates = [];
+
+  if (
+    Array.isArray(
+      manifest.actions
+    )
+  ) {
+    actionCandidates.push(
+      ...manifest.actions
+    );
+  }
+
+  if (
+    Array.isArray(
+      manifest.claim?.actions
+    )
+  ) {
+    actionCandidates.push(
+      ...manifest.claim.actions
+    );
+  }
+
+  assertions.forEach(
+    (assertion) => {
+      if (
+        !assertion ||
+        typeof assertion !== "object"
+      ) {
+        return;
+      }
+
+      const label =
+        getFirstString(
+          assertion,
+          [
+            "label",
+            "type"
+          ]
+        );
+
+      if (
+        label &&
+        (
+          label.toLowerCase().includes("action") ||
+          label.toLowerCase().includes("c2pa.action")
+        )
+      ) {
+        if (
+          Array.isArray(
+            assertion.data
+          )
+        ) {
+          actionCandidates.push(
+            ...assertion.data
+          );
+        }
+      }
+    }
+  );
+
+  actionCandidates.forEach(
+    (action) => {
+      if (
+        typeof action === "string"
+      ) {
+        const cleaned =
+          safeString(action);
+
+        if (
+          cleaned &&
+          !details.actions.includes(
+            cleaned
+          )
+        ) {
+          details.actions.push(
+            cleaned
+          );
+        }
+
+        return;
+      }
+
+      if (
+        !action ||
+        typeof action !== "object"
+      ) {
+        return;
+      }
+
+      const actionName =
+        getFirstString(
+          action,
+          [
+            "action",
+            "name",
+            "type"
+          ]
+        );
+
+      if (
+        actionName &&
+        !details.actions.includes(
+          actionName
+        )
+      ) {
+        details.actions.push(
+          actionName
+        );
+      }
+    }
+  );
+
+
+  /*
+    ==========================================================
+    INGREDIENTS
+    ==========================================================
+  */
+
+  const ingredientCandidates = [];
+
+  if (
+    Array.isArray(
+      manifest.ingredients
+    )
+  ) {
+    ingredientCandidates.push(
+      ...manifest.ingredients
+    );
+  }
+
+  if (
+    Array.isArray(
+      manifest.claim?.ingredients
+    )
+  ) {
+    ingredientCandidates.push(
+      ...manifest.claim.ingredients
+    );
+  }
+
+  ingredientCandidates.forEach(
+    (ingredient) => {
+      if (
+        typeof ingredient === "string"
+      ) {
+        const cleaned =
+          safeString(
+            ingredient
+          );
+
+        if (
+          cleaned &&
+          !details.ingredients.includes(
+            cleaned
+          )
+        ) {
+          details.ingredients.push(
+            cleaned
+          );
+        }
+
+        return;
+      }
+
+      if (
+        !ingredient ||
+        typeof ingredient !== "object"
+      ) {
+        return;
+      }
+
+      const title =
+        getFirstString(
+          ingredient,
+          [
+            "title",
+            "name",
+            "format",
+            "document_id",
+            "documentId",
+            "instance_id",
+            "instanceId"
+          ]
+        );
+
+      if (
+        title &&
+        !details.ingredients.includes(
+          title
+        )
+      ) {
+        details.ingredients.push(
+          title
+        );
+      }
+    }
+  );
+
+
+  /*
+    ==========================================================
+    VALIDATION
+    ==========================================================
+  */
+
+  const validationCandidates = [
+    manifest.validation_status,
+    manifest.validationStatus,
+    manifestStore.validation_status,
+    manifestStore.validationStatus
+  ];
+
+  for (
+    const candidate of validationCandidates
+  ) {
+    const validation =
+      safeString(
+        candidate
+      );
+
+    if (validation) {
+      details.validation =
+        validation;
+
+      break;
+    }
+  }
+
+  return details;
+}
+
+
+function addProvenanceEvidence(
+  provenance
+) {
+  if (
+    !provenance ||
+    !provenance.hasManifest ||
+    provenance.error
+  ) {
+    return;
+  }
+
+  const details =
+    extractProvenanceDetails(
+      provenance
+    );
+
+  if (!details.available) {
+    return;
+  }
+
+
+  /*
+    ==========================================================
+    PROVENANCE SUMMARY
+    ==========================================================
+  */
+
+  const summaryParts = [];
+
+  if (
+    details.claimGenerator
+  ) {
+    summaryParts.push(
+      `Claim generator: ${details.claimGenerator}`
+    );
+  }
+
+  if (
+    details.title
+  ) {
+    summaryParts.push(
+      `Title: ${details.title}`
+    );
+  }
+
+  if (
+    details.format
+  ) {
+    summaryParts.push(
+      `Format: ${details.format}`
+    );
+  }
+
+  if (
+    details.validation
+  ) {
+    summaryParts.push(
+      `Validation information: ${details.validation}`
+    );
+  }
+
+  if (
+    summaryParts.length > 0
+  ) {
+    evidenceList.appendChild(
+      createEvidenceItem(
+        "info",
+        "Content Credentials details",
+        summaryParts.join(". ") + "."
+      )
+    );
+  }
+
+
+  /*
+    ==========================================================
+    ACTIONS
+    ==========================================================
+  */
+
+  if (
+    details.actions.length > 0
+  ) {
+    evidenceList.appendChild(
+      createEvidenceItem(
+        "info",
+        "Recorded actions",
+        details.actions
+          .map(
+            (action) =>
+              action
+          )
+          .join(" · ")
+      )
+    );
+  }
+
+
+  /*
+    ==========================================================
+    INGREDIENTS
+    ==========================================================
+  */
+
+  if (
+    details.ingredients.length > 0
+  ) {
+    evidenceList.appendChild(
+      createEvidenceItem(
+        "info",
+        "Referenced ingredients",
+        details.ingredients
+          .join(" · ")
+      )
+    );
+  }
+
+
+  /*
+    ==========================================================
+    INSTANCE ID
+    ==========================================================
+  */
+
+  if (
+    details.instanceId
+  ) {
+    evidenceList.appendChild(
+      createEvidenceItem(
+        "info",
+        "Credential instance",
+        details.instanceId
+      )
+    );
+  }
+}
+
+
+/*
+  ============================================================
+  PROVENANCE CHECK
+  ============================================================
+*/
+
+
 async function runProvenanceCheck(dataUrl) {
-  const provenanceApi = window.MediaShieldProvenance;
+  const provenanceApi =
+    window.MediaShieldProvenance;
 
   if (
     !provenanceApi ||
@@ -223,12 +912,15 @@ async function runProvenanceCheck(dataUrl) {
       checked: false,
       hasManifest: false,
       manifestStore: null,
-      error: "Provenance checker unavailable."
+      error:
+        "Provenance checker unavailable."
     };
   }
 
   try {
-    return await provenanceApi.inspectProvenance(dataUrl);
+    return await provenanceApi.inspectProvenance(
+      dataUrl
+    );
   } catch (error) {
     return {
       checked: true,
@@ -261,7 +953,9 @@ async function runVisualAnalysis(dataUrl) {
               "mediaShieldInstallationId"
             ],
             (result) => {
-              if (chrome.runtime.lastError) {
+              if (
+                chrome.runtime.lastError
+              ) {
                 reject(
                   chrome.runtime.lastError
                 );
@@ -276,12 +970,14 @@ async function runVisualAnalysis(dataUrl) {
       );
 
     const token =
-      typeof stored.mediaShieldProToken === "string"
+      typeof stored.mediaShieldProToken ===
+        "string"
         ? stored.mediaShieldProToken.trim()
         : "";
 
     const installationId =
-      typeof stored.mediaShieldInstallationId === "string"
+      typeof stored.mediaShieldInstallationId ===
+        "string"
         ? stored.mediaShieldInstallationId.trim()
         : "";
 
@@ -353,8 +1049,7 @@ async function runVisualAnalysis(dataUrl) {
 
     return {
       ok: true,
-      analysis:
-        analysis
+      analysis
     };
 
   } catch (error) {
@@ -382,17 +1077,26 @@ async function runVisualAnalysis(dataUrl) {
 */
 
 
-function parseVisualAnalysis(rawAnalysis) {
+function parseVisualAnalysis(
+  rawAnalysis
+) {
   const result = {
-    assessment: "Inconclusive",
-    summary: "",
-    indicators: [],
+    assessment:
+      "Inconclusive",
+
+    summary:
+      "",
+
+    indicators:
+      [],
+
     limitation:
       "Visual inspection alone cannot prove whether an image is authentic, AI-generated, AI-edited, or otherwise manipulated."
   };
 
   if (
-    typeof rawAnalysis !== "string" ||
+    typeof rawAnalysis !==
+      "string" ||
     !rawAnalysis.trim()
   ) {
     return result;
@@ -406,7 +1110,9 @@ function parseVisualAnalysis(rawAnalysis) {
       /ASSESSMENT:\s*(.+?)(?=\n|SUMMARY:|$)/i
     );
 
-  if (assessmentMatch) {
+  if (
+    assessmentMatch
+  ) {
     result.assessment =
       assessmentMatch[1].trim();
   }
@@ -416,10 +1122,15 @@ function parseVisualAnalysis(rawAnalysis) {
       /SUMMARY:\s*([\s\S]*?)(?=\n\s*INDICATORS:|INDICATORS:|$)/i
     );
 
-  if (summaryMatch) {
+  if (
+    summaryMatch
+  ) {
     result.summary =
       summaryMatch[1]
-        .replace(/\s+/g, " ")
+        .replace(
+          /\s+/g,
+          " "
+        )
         .trim();
   }
 
@@ -428,17 +1139,20 @@ function parseVisualAnalysis(rawAnalysis) {
       /INDICATORS:\s*([\s\S]*?)(?=\n\s*LIMITATION:|LIMITATION:|$)/i
     );
 
-  if (indicatorsMatch) {
+  if (
+    indicatorsMatch
+  ) {
     result.indicators =
       indicatorsMatch[1]
         .split("\n")
-        .map((line) =>
-          line
-            .replace(
-              /^\s*[-•]\s*/,
-              ""
-            )
-            .trim()
+        .map(
+          (line) =>
+            line
+              .replace(
+                /^\s*[-•]\s*/,
+                ""
+              )
+              .trim()
         )
         .filter(Boolean);
   }
@@ -448,10 +1162,15 @@ function parseVisualAnalysis(rawAnalysis) {
       /LIMITATION:\s*([\s\S]*?)$/i
     );
 
-  if (limitationMatch) {
+  if (
+    limitationMatch
+  ) {
     const limitation =
       limitationMatch[1]
-        .replace(/\s+/g, " ")
+        .replace(
+          /\s+/g,
+          " "
+        )
         .trim();
 
     if (limitation) {
@@ -471,18 +1190,32 @@ function parseVisualAnalysis(rawAnalysis) {
 */
 
 
-function normaliseAssessment(assessment) {
+function normaliseAssessment(
+  assessment
+) {
   const value =
-    String(assessment || "")
+    String(
+      assessment || ""
+    )
       .toLowerCase()
       .trim()
-      .replace(/[.!:;]+$/g, "");
+      .replace(
+        /[.!:;]+$/g,
+        ""
+      );
 
   const allowedAssessments = {
-    "low indicators": "low",
-    "some indicators": "some",
-    "strong indicators": "strong",
-    "inconclusive": "inconclusive"
+    "low indicators":
+      "low",
+
+    "some indicators":
+      "some",
+
+    "strong indicators":
+      "strong",
+
+    "inconclusive":
+      "inconclusive"
   };
 
   return (
@@ -496,20 +1229,12 @@ function normaliseAssessment(assessment) {
   ============================================================
   V3 PRO VISUAL EVIDENCE
   ============================================================
-
-  V3 presentation change:
-
-  Instead of creating a separate card titled
-  "Pro visual indicator" for every model observation,
-  all observations are grouped into one Visual Indicators
-  section.
-
-  The underlying model output and assessment are unchanged.
-  ============================================================
 */
 
 
-function addVisualAnalysisEvidence(parsedAnalysis) {
+function addVisualAnalysisEvidence(
+  parsedAnalysis
+) {
   const assessmentType =
     normaliseAssessment(
       parsedAnalysis.assessment
@@ -551,56 +1276,56 @@ function addVisualAnalysisEvidence(parsedAnalysis) {
   */
 
   if (
-    parsedAnalysis.indicators.length > 0
+    parsedAnalysis.indicators.length >
+    0
   ) {
     const article =
-      document.createElement("article");
+      document.createElement(
+        "article"
+      );
 
     article.className =
       "evidence-item";
 
     const indicator =
-      document.createElement("div");
+      document.createElement(
+        "div"
+      );
 
     indicator.className =
       `indicator ${indicatorType}`;
 
     const content =
-      document.createElement("div");
+      document.createElement(
+        "div"
+      );
 
     const heading =
-      document.createElement("h4");
+      document.createElement(
+        "h4"
+      );
 
     heading.textContent =
       "Visual indicators";
 
     const list =
-      document.createElement("ul");
-
-    list.style.margin =
-      "8px 0 0";
-
-    list.style.paddingLeft =
-      "18px";
-
-    list.style.color =
-      "inherit";
+      document.createElement(
+        "ul"
+      );
 
     parsedAnalysis.indicators.forEach(
       (indicatorText) => {
         const item =
-          document.createElement("li");
+          document.createElement(
+            "li"
+          );
 
         item.textContent =
           indicatorText;
 
-        item.style.marginBottom =
-          "6px";
-
-        item.style.lineHeight =
-          "1.45";
-
-        list.appendChild(item);
+        list.appendChild(
+          item
+        );
       }
     );
 
@@ -663,7 +1388,9 @@ function updateProFinalStatus(
   provenance,
   visualResult
 ) {
-  if (aiMetadataDetected) {
+  if (
+    aiMetadataDetected
+  ) {
     statusTitle.textContent =
       "Potential manipulation indicators detected";
 
@@ -722,7 +1449,9 @@ function updateFreeFinalStatus(
   aiMetadataDetected,
   provenance
 ) {
-  if (aiMetadataDetected) {
+  if (
+    aiMetadataDetected
+  ) {
     statusTitle.textContent =
       "Metadata indicator detected";
 
@@ -759,7 +1488,9 @@ function updateFreeFinalStatus(
 */
 
 
-async function analyzeImageRecord(record) {
+async function analyzeImageRecord(
+  record
+) {
   if (
     !record ||
     !record.dataUrl
@@ -777,7 +1508,9 @@ async function analyzeImageRecord(record) {
 
   const details = [];
 
-  if (record.type) {
+  if (
+    record.type
+  ) {
     details.push(
       record.type
     );
@@ -902,6 +1635,23 @@ async function analyzeImageRecord(record) {
         )
       );
 
+
+      /*
+        ======================================================
+        V3 — RICHER C2PA DETAILS
+        ======================================================
+      */
+
+      if (
+        provenance.hasManifest &&
+        !provenance.error
+      ) {
+        addProvenanceEvidence(
+          provenance
+        );
+      }
+
+
       const aiMetadataDetected =
         metadata &&
         Array.isArray(
@@ -917,8 +1667,9 @@ async function analyzeImageRecord(record) {
         ======================================================
       */
 
-
-      if (!isPro) {
+      if (
+        !isPro
+      ) {
         evidenceList.appendChild(
           createEvidenceItem(
             "neutral",
@@ -941,7 +1692,6 @@ async function analyzeImageRecord(record) {
         PRO USER
         ======================================================
       */
-
 
       statusTitle.textContent =
         "Running Pro visual analysis…";
@@ -988,27 +1738,28 @@ async function analyzeImageRecord(record) {
     };
 
 
-  image.onerror = () => {
-    previewContainer.innerHTML =
-      "<p>The selected image could not be displayed.</p>";
+  image.onerror =
+    () => {
+      previewContainer.innerHTML =
+        "<p>The selected image could not be displayed.</p>";
 
-    evidenceList.innerHTML =
-      "";
+      evidenceList.innerHTML =
+        "";
 
-    evidenceList.appendChild(
-      createEvidenceItem(
-        "neutral",
-        "Image reading",
-        "Media Shield could not safely read the selected image. No analysis result is available."
-      )
-    );
+      evidenceList.appendChild(
+        createEvidenceItem(
+          "neutral",
+          "Image reading",
+          "Media Shield could not safely read the selected image. No analysis result is available."
+        )
+      );
 
-    statusTitle.textContent =
-      "Image could not be read";
+      statusTitle.textContent =
+        "Image could not be read";
 
-    statusDescription.textContent =
-      "Media Shield could not safely read the selected image.";
-  };
+      statusDescription.textContent =
+        "Media Shield could not safely read the selected image.";
+    };
 
 
   image.src =
@@ -1023,7 +1774,9 @@ async function analyzeImageRecord(record) {
 */
 
 
-if (checkAnotherButton) {
+if (
+  checkAnotherButton
+) {
   checkAnotherButton.addEventListener(
     "click",
     () => {
