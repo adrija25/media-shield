@@ -35,6 +35,7 @@ body {
   padding: 22px;
 }
 
+
 /* ============================================================
    BRAND
    ============================================================ */
@@ -73,6 +74,7 @@ body {
   font-size: 11px;
 }
 
+
 /* ============================================================
    PAGE HEADING
    ============================================================ */
@@ -95,6 +97,7 @@ body {
   margin: 8px 0 9px;
   font-size: 24px;
   letter-spacing: -0.6px;
+  line-height: 1.2;
 }
 
 .heading p {
@@ -103,6 +106,7 @@ body {
   font-size: 12px;
   line-height: 1.55;
 }
+
 
 /* ============================================================
    MEDIA CARD
@@ -136,8 +140,12 @@ body {
 }
 
 .preview-container p {
+  margin: 0;
+  padding: 20px;
   color: #69768f;
   font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
 }
 
 .file-information {
@@ -160,6 +168,7 @@ body {
   font-size: 10px;
 }
 
+
 /* ============================================================
    STATUS
    ============================================================ */
@@ -177,6 +186,7 @@ body {
   margin: 8px 0 6px;
   color: #dce4ff;
   font-size: 17px;
+  line-height: 1.3;
 }
 
 .status-card p {
@@ -185,6 +195,7 @@ body {
   font-size: 11px;
   line-height: 1.55;
 }
+
 
 /* ============================================================
    EVIDENCE
@@ -208,6 +219,7 @@ body {
 
 .evidence-item {
   display: flex;
+  align-items: flex-start;
   gap: 12px;
   width: 100%;
   padding: 14px;
@@ -217,6 +229,11 @@ body {
 .evidence-item + .evidence-item {
   border-top: 1px solid #1c2941;
 }
+
+
+/* ============================================================
+   EVIDENCE INDICATORS
+   ============================================================ */
 
 .indicator {
   width: 9px;
@@ -238,18 +255,30 @@ body {
   background: #d8a84e;
 }
 
+
+/* ============================================================
+   EVIDENCE CONTENT
+   ============================================================ */
+
+.evidence-item > div:last-child {
+  min-width: 0;
+  flex: 1;
+}
+
 .evidence-item h4 {
-  margin: 0 0 4px;
+  margin: 0 0 5px;
   color: #dce3ef;
   font-size: 12px;
+  line-height: 1.35;
 }
 
 .evidence-item p {
   margin: 0;
   color: #7f8da5;
   font-size: 10px;
-  line-height: 1.5;
+  line-height: 1.55;
 }
+
 
 /* ============================================================
    V3 — GROUPED VISUAL INDICATORS
@@ -257,19 +286,39 @@ body {
 
 .evidence-item ul {
   margin: 8px 0 0;
-  padding-left: 18px;
+  padding-left: 17px;
   color: #7f8da5;
   font-size: 10px;
-  line-height: 1.5;
+  line-height: 1.55;
 }
 
 .evidence-item li {
-  margin-bottom: 6px;
+  margin: 0 0 6px;
+  padding-left: 2px;
 }
 
 .evidence-item li:last-child {
   margin-bottom: 0;
 }
+
+
+/* ============================================================
+   V3 — WHAT THIS MEANS
+   ============================================================ */
+
+.evidence-item:last-child {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(22, 35, 65, 0.88),
+      rgba(12, 21, 39, 0.86)
+    );
+}
+
+.evidence-item:last-child h4 {
+  color: #cbd7ff;
+}
+
 
 /* ============================================================
    IMPORTANT NOTE
@@ -296,6 +345,7 @@ body {
   line-height: 1.55;
 }
 
+
 /* ============================================================
    CHECK ANOTHER IMAGE
    ============================================================ */
@@ -312,11 +362,31 @@ body {
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
 }
 
 #checkAnotherButton:hover {
   background: #162542;
 }
+
+#checkAnotherButton:active {
+  transform: scale(0.99);
+}
+
+
+/* ============================================================
+   SAFETY / LONG CONTENT
+   ============================================================ */
+
+.evidence-item p,
+.evidence-item li,
+.important-note p {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
 
 /* ============================================================
    RESPONSIVE SAFETY
@@ -337,5 +407,9 @@ body {
 
   .evidence-item {
     padding: 13px;
+  }
+
+  .evidence-item ul {
+    padding-left: 16px;
   }
 }
